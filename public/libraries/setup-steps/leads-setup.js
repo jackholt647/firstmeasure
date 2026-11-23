@@ -11,13 +11,14 @@ const fold = (value) => clean(value).toLowerCase().normalize('NFKD').replace(/[^
 const css = `
 .gxl{display:flex;flex-direction:column;gap:12px;min-width:0;padding-bottom:6px;color:#101828;font-size:13.5px}
 .gxl-lead{margin:0;color:#475467;line-height:1.5}
-.gxl-choices{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-.gxl-choice{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;align-items:start;width:100%;padding:13px 14px;border:1.5px solid #eaecf0;border-radius:14px;background:#fff;font:inherit;text-align:left;cursor:pointer}
+.gxl-choices{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));padding:4px 0}
+.gxl-choice{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:6px;width:100%;min-height:156px;padding:20px 18px;border:1.5px solid #eaecf0;border-radius:16px;background:#fff;font:inherit;text-align:left;cursor:pointer}
 .gxl-choice[aria-pressed="true"]{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
-.gxl-choice>i{grid-row:span 2;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#f2f4f7;color:#475467}
-.gxl-choice strong{font-weight:900}
-.gxl-choice span{color:#667085;font-size:12px;font-weight:650;line-height:1.4}
-.gxl-choice small{grid-column:2;color:#067647;font-weight:800;font-size:11.5px}
+.gxl-choice>i{width:40px;height:40px;margin-bottom:8px;border-radius:12px;display:grid;place-items:center;background:#f2f4f7;color:#475467;font-size:16px}
+.gxl-choice[aria-pressed="true"]>i{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary,#d93025)}
+.gxl-choice strong{font-size:15px;font-weight:900;line-height:1.3}
+.gxl-choice span{color:#667085;font-size:13px;font-weight:650;line-height:1.45}
+@media(max-width:620px){.gxl-choice{min-height:0;flex-direction:row;flex-wrap:wrap;column-gap:12px;padding:14px 16px}.gxl-choice>i{margin-bottom:0}.gxl-choice span{flex-basis:100%}}
 .gxl-list{display:flex;flex-direction:column;gap:8px}
 .gxl-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #e4e7ec;border-radius:12px;background:#fff}
 .gxl-row[data-on="false"]{opacity:.6}
@@ -96,9 +97,9 @@ export function mount(el, ctx){
   }
 
   function choices(name, options, picked, multi){
-    return `<div class="gxl-choices" role="${multi ? 'group' : 'radiogroup'}">${options.map(([id, icon, key, label, hintKey, hint, badge]) => {
+    return `<div class="gxl-choices" role="${multi ? 'group' : 'radiogroup'}">${options.map(([id, icon, key, label, hintKey, hint]) => {
       const on = multi ? array(picked).includes(id) : picked === id;
-      return `<button type="button" class="gxl-choice" data-${name}="${esc(id)}" ${multi ? '' : 'role="radio"'} aria-pressed="${on}" ${multi ? '' : `aria-checked="${on}"`}><i class="fas ${icon}" aria-hidden="true"></i><strong>${T(key, label)}</strong><span>${T(hintKey, hint)}</span>${badge ? `<small>${esc(badge)}</small>` : ''}</button>`;
+      return `<button type="button" class="gxl-choice" data-${name}="${esc(id)}" ${multi ? '' : 'role="radio"'} aria-pressed="${on}" ${multi ? '' : `aria-checked="${on}"`}><i class="fas ${icon}" aria-hidden="true"></i><strong>${T(key, label)}</strong><span>${T(hintKey, hint)}</span></button>`;
     }).join('')}</div>`;
   }
 
@@ -106,27 +107,27 @@ export function mount(el, ctx){
     if (!alive || !status) return;
     const answers = object(status.answers);
     if (part === 'sources') {
-      const inbox = object(object(status.sources).lead_inbox);
+      // Each card says what the source is, never where to set it up: this setup connects what is picked. Connecting more
+      // later is a line in the step's tooltip (its subtitle), not a section here.
       el.innerHTML = `<div class="gxl"><p class="gxl-lead">${T('sources_lead', 'Pick everything you use. We’ll turn each one on so its leads land in your new leads.')}</p>
         ${choices('source', [
-          ['website', 'fa-globe', 'src_website', 'Website forms', 'src_website_hint', 'A form on your site that sends you the lead.'],
-          ['email', 'fa-envelope-open-text', 'src_email', 'Lead emails', 'src_email_hint', 'Lead services or your site email you leads; forward them to your lead inbox.', inbox.address || ''],
-          ['services', 'fa-plug', 'src_services', 'Lead services', 'src_services_hint', 'Angi, Google, Facebook and others. Connect them in Settings › Connections.'],
-          ['phone', 'fa-phone', 'src_phone', 'Phone calls', 'src_phone_hint', 'People who call you. Set up calling in Communications.']
-        ], state.sources, true)}
-        <div class="gxl-tip"><i class="fas fa-circle-info" aria-hidden="true"></i><span>${T('sources_later', 'You can connect more lead sources any time in Settings › Lead import and Settings › Connections.')}</span></div></div>`;
+          ['phone', 'fa-phone', 'src_phone', 'Phone calls', 'src_phone_people', 'People who call you.'],
+          ['website', 'fa-globe', 'src_website', 'Website forms', 'src_website_short', 'A form on your site sends you leads.'],
+          ['email', 'fa-envelope-open-text', 'src_email', 'Lead emails', 'src_email_short', 'Your site or a lead service emails you leads.'],
+          ['services', 'fa-plug', 'src_services', 'Lead services', 'src_services_names', 'Angi, Google, Facebook and others.']
+        ], state.sources, true)}</div>`;
     } else if (part === 'contact') {
       el.innerHTML = `<div class="gxl">${choices('method', [
         ['call', 'fa-phone-volume', 'contact_call', 'We call them', 'contact_call_hint', 'Most companies call a new lead first.'],
         ['text', 'fa-comment-sms', 'contact_text', 'We text them', 'contact_text_hint', 'A text first, then a call when they reply.'],
         ['email', 'fa-envelope', 'contact_email', 'We email them', 'contact_email_hint', 'An email first.'],
-        ['none', 'fa-folder-open', 'contact_none', 'We treat it like any project', 'contact_none_hint', 'Just tell us it came in and put it on the board.']
+        ['none', 'fa-folder-open', 'contact_board', 'Straight onto our board', 'contact_board_hint', 'No script. New leads go on your board with your other jobs.']
       ], state.method)}</div>`;
     } else if (part === 'no_answer') {
       el.innerHTML = `<div class="gxl"><p class="gxl-lead">${T('no_answer_lead', 'Pick any of them. We’ll put them in your call script, with the words we send.')}</p>${choices('action', [
         ['text', 'fa-comment-sms', 'na_text', 'Send them a text', 'na_text_hint', '“We tried calling. When’s a good time to talk?”'],
-        ['email', 'fa-envelope', 'na_email', 'Send them an email', 'na_email_hint', 'A short note that you tried to reach them.'],
-        ['retry', 'fa-clock-rotate-left', 'na_retry', 'Try them again later', 'na_retry_hint', 'A to-do to call again in a few hours.']
+        ['retry', 'fa-clock-rotate-left', 'na_retry', 'Try them again later', 'na_retry_hint', 'A to-do to call again in a few hours.'],
+        ['email', 'fa-envelope', 'na_email', 'Send them an email', 'na_email_hint', 'A short note that you tried to reach them.']
       ], state.actions, true)}</div>`;
     } else if (part === 'questions') {
       el.innerHTML = `<div class="gxl"><p class="gxl-lead">${T('questions_lead', 'Pick what you ask on that first call. Add your own; you can reword any of them later.')}</p>
@@ -197,7 +198,7 @@ export function mount(el, ctx){
 
   function start(){
     const answers = object(status.answers);
-    if (part === 'sources') state.sources = Array.isArray(given.sources) ? given.sources : array(answers.sources).length ? answers.sources : ['website', 'email'];
+    if (part === 'sources') state.sources = Array.isArray(given.sources) ? given.sources : array(answers.sources).length ? answers.sources : ['phone', 'website'];
     if (part === 'contact') state.method = clean(given.method) || clean(answers.contact) || 'call';
     if (part === 'no_answer') state.actions = Array.isArray(given.actions) ? given.actions : Array.isArray(answers.no_answer) ? answers.no_answer : ['text', 'retry'];
     if (part === 'questions') {

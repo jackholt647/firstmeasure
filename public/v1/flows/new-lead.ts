@@ -15,7 +15,7 @@ import type { FlowDefinition } from "./contracts.js";
  * no answer and call back leave a follow-up.
  */
 export const CONTACT_METHODS = ["call", "text", "email"] as const;
-export const NO_ANSWER_ACTIONS = ["text", "email", "retry"] as const;
+export const NO_ANSWER_ACTIONS = ["text", "retry", "email"] as const;
 export type NewLeadAnswers = {
   contact: (typeof CONTACT_METHODS)[number];
   no_answer: Array<(typeof NO_ANSWER_ACTIONS)[number]>;
@@ -25,15 +25,15 @@ export type NewLeadAnswers = {
 
 /** Questions offered by the setup, in order. A company adds its own; each is an `ask` block. */
 export const SUGGESTED_QUESTIONS: NewLeadAnswers["questions"] = [
+  { key: "name", label: "Who am I speaking with?", input: "text" },
   { key: "need", label: "What do you need done?", input: "select", options: [
     { id: "replacement", label: "A replacement" }, { id: "repair", label: "A repair" }, { id: "inspection", label: "An inspection" }, { id: "estimate", label: "Just an estimate" }, { id: "other", label: "Something else" }] },
   { key: "address", label: "What's the address of the job?", input: "address", saves_to: "project.address" },
   { key: "timeline", label: "When are you hoping to get it done?", input: "select", options: [
     { id: "asap", label: "As soon as possible" }, { id: "month", label: "In the next month" }, { id: "later", label: "In a few months" }, { id: "unsure", label: "Not sure yet" }] },
-  { key: "insurance", label: "Is this an insurance claim?", input: "yes_no" },
+  { key: "spouse", label: "Is there a spouse or partner in the home?", input: "yes_no" },
   { key: "found_us", label: "How did you hear about us?", input: "select", options: [
-    { id: "search", label: "Online search" }, { id: "referral", label: "A friend or neighbor" }, { id: "social", label: "Social media" }, { id: "sign", label: "A yard sign or truck" }, { id: "other", label: "Other" }] },
-  { key: "notes", label: "Anything else we should know?", input: "paragraph" }
+    { id: "search", label: "Online search" }, { id: "referral", label: "A friend or neighbor" }, { id: "social", label: "Social media" }, { id: "sign", label: "A yard sign or truck" }, { id: "other", label: "Other" }] }
 ];
 
 export const DEFAULT_TEXT = "Hi {{contact.first_name}}, this is {{user.first_name}} with {{organization.name}}. Thanks for reaching out! We tried calling. When's a good time to talk? Reply STOP to opt out.";
@@ -69,8 +69,8 @@ export function newLeadFlow(answers: NewLeadAnswers): FlowDefinition {
   if (answers.contact === "call") {
     const noAnswer = [
       ...(answers.no_answer.includes("text") ? [sms("no_answer_text", "Text them", DEFAULT_TEXT)] : []),
-      ...(answers.no_answer.includes("email") ? [email("no_answer_email", "Email them", DEFAULT_EMAIL_SUBJECT, DEFAULT_EMAIL)] : []),
-      ...(answers.no_answer.includes("retry") ? [followUp("no_answer_retry", "Try the lead again", 4)] : [])
+      ...(answers.no_answer.includes("retry") ? [followUp("no_answer_retry", "Try the lead again", 4)] : []),
+      ...(answers.no_answer.includes("email") ? [email("no_answer_email", "Email them", DEFAULT_EMAIL_SUBJECT, DEFAULT_EMAIL)] : [])
     ];
     return {
       name: "New lead call", description: "The first call to a new lead: did they answer, what you ask, and where the lead goes next.", icon: "fa-phone-volume", color: "#2563eb",
@@ -132,7 +132,7 @@ export function manualLeadFlow(questions: NewLeadAnswers["questions"]): FlowDefi
         { id: "contact", kind: "contact", label: "", mode: "find_or_create", from: { name: "answers.name", phone: "answers.phone", email: "answers.email" } },
         { id: "lead", kind: "project", label: "", mode: "create_lead", from: { address: "answers.address" } }
       ], next: "details" },
-      { id: "details", title: "What do they need?", blocks: questions.filter((question) => question.key !== "address").map((question, index) => ({ id: `q_${index + 1}`, kind: "ask" as const, key: question.key,
+      { id: "details", title: "What do they need?", blocks: questions.filter((question) => question.key !== "address" && question.key !== "name").map((question, index) => ({ id: `q_${index + 1}`, kind: "ask" as const, key: question.key,
         label: question.label, input: (question.input || "text") as never, options: question.options || [], required: false, placeholder: "", ...(question.saves_to ? { saves_to: question.saves_to } : {}) })), next: "done" },
       { id: "done", title: "Lead saved", blocks: [
         { id: "saved", kind: "note", label: "", text: "{{contact.name}} is in your new leads." },

@@ -10,15 +10,15 @@
       },
       "subtitle": {
         "key": "gx_step_leads_sources_subtitle",
-        "text": "We'll turn each one on so its leads land in your new leads."
+        "text": "We'll turn each one on so its leads land in your new leads.\nYou can connect more lead sources any time in Settings › Lead import and Settings › Connections."
       },
       "description": {
         "key": "gx_step_leads_sources_description",
-        "text": "Where the organization's leads come in: website forms, lead emails, lead services, phone calls."
+        "text": "Where the organization's leads come in: phone calls, website forms, lead emails, lead services."
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-5"
       },
       "options": {
         "part": "sources"
@@ -54,11 +54,11 @@
       },
       "description": {
         "key": "gx_step_leads_contact_description",
-        "text": "How the organization first contacts a new lead: call, text, email, or treat it like any project."
+        "text": "How the organization first contacts a new lead: call, text, email, or straight onto the board with no script."
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-5"
       },
       "options": {
         "part": "contact"
@@ -96,11 +96,11 @@
       },
       "description": {
         "key": "gx_step_leads_no_answer_description",
-        "text": "What happens when a new lead does not answer the first call: a text, an email, try again later."
+        "text": "What happens when a new lead does not answer the first call: a text, try again later, an email."
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-5"
       },
       "options": {
         "part": "no_answer"
@@ -142,7 +142,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-5"
       },
       "options": {
         "part": "questions"
@@ -184,7 +184,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-5"
       },
       "options": {
         "part": "script"
@@ -226,7 +226,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-4"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-5"
       },
       "options": {
         "part": "new_menu"
