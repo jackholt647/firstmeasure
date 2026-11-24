@@ -18,7 +18,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-6"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-7"
       },
       "options": {
         "part": "sources"
@@ -58,7 +58,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-6"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-7"
       },
       "options": {
         "part": "contact"
@@ -100,7 +100,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-6"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-7"
       },
       "options": {
         "part": "no_answer"
@@ -142,7 +142,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-6"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-7"
       },
       "options": {
         "part": "questions"
@@ -171,12 +171,12 @@
       "version": 1,
       "scope": "organization",
       "title": {
-        "key": "gx_step_leads_script_title",
-        "text": "Here's your new lead script"
+        "key": "gx_step_leads_script_title_v2",
+        "text": "New lead script"
       },
       "subtitle": {
-        "key": "gx_step_leads_script_subtitle_v2",
-        "text": "Made from your answers. Words in [brackets] are filled in for each lead. Click anything to change it; to edit it later, go to CRM settings \u203a Flows."
+        "key": "gx_step_leads_script_subtitle_v3",
+        "text": "Made from your answers, one question per step. Words in pills are filled in for each lead. Click anything to change it, or ask the assistant. To edit it later, go to CRM settings \u203a Flows."
       },
       "description": {
         "key": "gx_step_leads_script_description",
@@ -184,7 +184,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-6"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-7"
       },
       "options": {
         "part": "script"
@@ -226,7 +226,7 @@
       },
       "ui": {
         "widget": "module",
-        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-6"
+        "module": "/libraries/setup-steps/leads-setup.js?v=20261123-7"
       },
       "options": {
         "part": "new_menu"

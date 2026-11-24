@@ -57,8 +57,9 @@ export function newLeadFlow(answers: NewLeadAnswers): FlowDefinition {
     { id: "not_interested", label: "Not interested", color: "#dc2626", effects: [{ automation: "sales.markLost.v1", input: { reason: "not_interested" }, explainer: "Marks the lead lost." }] },
     { id: "not_a_lead", label: "Not a lead", color: "#7a271a", effects: [{ automation: "sales.markLost.v1", input: { reason: "not_a_lead" }, explainer: "Marks the lead lost: a wrong number or spam." }] }
   ];
-  const asks = answers.questions.map((question, index) => ({ id: `q_${index + 1}`, kind: "ask" as const, key: question.key, label: question.label,
-    input: (question.input || "text") as never, options: question.options || [], required: false, placeholder: "", ...(question.saves_to ? { saves_to: question.saves_to } : {}) }));
+  // One question per step (Jack, 2026-11-23): short steps read better on a call and use the height of the screen.
+  const asked = questionSteps(answers.questions, "next");
+  const firstQuestion = asked[0]?.id || "next";
   const nextStep = { id: "next", title: "What's next?", blocks: [
     { id: "say_next", kind: "say" as const, label: "", text: "Thanks, that's everything I need. The next step is to set up a time to come out and take a look. What works for you?" },
     { id: "result", kind: "choice" as const, key: "result", label: "How did it go?", required: true, options: [
@@ -82,9 +83,9 @@ export function newLeadFlow(answers: NewLeadAnswers): FlowDefinition {
             { id: "yes", label: "They answered", to: "greet" }, { id: "no", label: "No answer", to: "no_answer" }, { id: "wrong", label: "Wrong number", outcome: "not_a_lead" }] }
         ], next: null },
         { id: "greet", title: "They answered", blocks: [
-          { id: "say_hello", kind: "say", label: "", text: "Hi, is this {{contact.first_name}}? This is {{user.first_name}} with {{organization.name}}. Thanks for reaching out! Do you have a couple of minutes to tell me about your project?" },
-          ...asks
-        ], next: "next" },
+          { id: "say_hello", kind: "say", label: "", text: "Hi, is this {{contact.first_name}}? This is {{user.first_name}} with {{organization.name}}. Thanks for reaching out! Do you have a couple of minutes to tell me about your project?" }
+        ], next: firstQuestion },
+        ...asked,
         nextStep,
         callBack,
         { id: "no_answer", title: "No answer", blocks: [
@@ -105,9 +106,9 @@ export function newLeadFlow(answers: NewLeadAnswers): FlowDefinition {
       { id: "send", title: answers.contact === "text" ? "Text the lead" : "Email the lead", blocks: [first], next: "replied" },
       { id: "replied", title: "Did they reply?", blocks: [
         { id: "reply", kind: "choice", key: "replied", label: "Did they get back to you?", required: true, options: [
-          { id: "yes", label: "They replied", to: "details" }, { id: "not_yet", label: "Not yet", to: "call_back" }, { id: "wrong", label: "Wrong person", outcome: "not_a_lead" }] }
+          { id: "yes", label: "They replied", to: firstQuestion }, { id: "not_yet", label: "Not yet", to: "call_back" }, { id: "wrong", label: "Wrong person", outcome: "not_a_lead" }] }
       ], next: null },
-      { id: "details", title: "What they told you", blocks: asks, next: "next" },
+      ...asked,
       nextStep,
       callBack
     ],
@@ -121,6 +122,7 @@ export function newLeadFlow(answers: NewLeadAnswers): FlowDefinition {
  * make the lead through intake, then the questions, then open it.
  */
 export function manualLeadFlow(questions: NewLeadAnswers["questions"]): FlowDefinition {
+  const manualAsked = questionSteps(questions.filter((question) => !["address", "name"].includes(question.key)), "done");
   return {
     name: "New lead", description: "Enter a lead by hand: who they are, what they need, then open it.", icon: "fa-user-plus", color: "#2563eb", kind: "workflow", audience: "staff", start: "who", outcomes: [],
     steps: [
@@ -131,9 +133,8 @@ export function manualLeadFlow(questions: NewLeadAnswers["questions"]): FlowDefi
         { id: "address", kind: "ask", key: "address", label: "Address of the job", input: "address", options: [], required: false, placeholder: "" },
         { id: "contact", kind: "contact", label: "", mode: "find_or_create", from: { name: "answers.name", phone: "answers.phone", email: "answers.email" } },
         { id: "lead", kind: "project", label: "", mode: "create_lead", from: { address: "answers.address" } }
-      ], next: "details" },
-      { id: "details", title: "What do they need?", blocks: questions.filter((question) => question.key !== "address").map((question, index) => ({ id: `q_${index + 1}`, kind: "ask" as const, key: question.key,
-        label: question.label, input: (question.input || "text") as never, options: question.options || [], required: false, placeholder: "", ...(question.saves_to ? { saves_to: question.saves_to } : {}) })), next: "done" },
+      ], next: manualAsked[0]?.id || "done" },
+      ...manualAsked,
       { id: "done", title: "Lead saved", blocks: [
         { id: "saved", kind: "note", label: "", text: "{{contact.name}} is in your new leads." },
         { id: "end", kind: "buttons", label: "", buttons: [{ kind: "open_project", label: "Open the lead", target: "" }, { kind: "restart", label: "Enter another", target: "" }, { kind: "close", label: "Close", target: "" }] }
@@ -142,6 +143,20 @@ export function manualLeadFlow(questions: NewLeadAnswers["questions"]): FlowDefi
     entry: { new_menu: { enabled: true, label: "Lead", icon: "fa-user-plus", role_ids: [], sort_order: 0 } },
     metadata: { created_from: "leads.setup" }
   } as FlowDefinition;
+}
+
+/** Short step titles for the suggested questions; a company's own question is titled by its words. */
+const STEP_TITLES: Record<string, string> = { need: "The job", address: "The address", timeline: "Timing", insurance: "Insurance", found_us: "How they found us", notes: "Anything else", name: "Who it is" };
+
+/** Each question its own step, in order, the last going on to `then`. */
+export function questionSteps(questions: NewLeadAnswers["questions"], then: string) {
+  return questions.map((question, index) => ({
+    id: `ask_${question.key}`,
+    title: STEP_TITLES[question.key] || question.label.replace(/\?$/, "").slice(0, 60),
+    blocks: [{ id: `q_${index + 1}`, kind: "ask" as const, key: question.key, label: question.label, input: (question.input || "text") as never, options: question.options || [], required: false, placeholder: "",
+      ...(question.saves_to ? { saves_to: question.saves_to } : {}) }],
+    next: index < questions.length - 1 ? `ask_${questions[index + 1]!.key}` : then
+  }));
 }
 
 export const asJson = (flow: FlowDefinition) => flow as unknown as JsonObject;

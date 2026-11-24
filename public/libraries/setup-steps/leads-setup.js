@@ -147,6 +147,20 @@ export function mount(el, ctx){
   }
 
   /** The new-lead flow as a map of its steps: what you say (editable), what you ask, what's sent (editable), where it goes. */
+  /**
+   * The new-lead flow as a saved draft (a new version, not published): the editor and the assistant then work on the
+   * same saved copy, and Continue publishes what is there.
+   */
+  async function draftId(){
+    const flows = window.FirstMateFlows;
+    if (!flows?.api || !status?.flow_id) throw new Error('No flow store on this page.');
+    const id = status.flow_id;
+    const current = await flows.api(`/flows/${encodeURIComponent(id)}?latest=1`).catch(() => null);
+    const body = { definition: state.definition, publish: false, ...(current?.flow ? { expected_version: current.flow.version } : {}) };
+    if (current?.flow && JSON.stringify(current.flow.definition) === JSON.stringify(state.definition)) return id;
+    await (current?.flow ? flows.api(`/flows/${encodeURIComponent(id)}`, { method: 'PUT', body }) : flows.api('/flows', { method: 'POST', body: { ...body, id } }));
+    return id;
+  }
   /** The flow player and both editors, from the same /libraries/ this module came from, each once per page. */
   function flowLibraries(){
     const base = new URL('../flows/', import.meta.url).href.replace(/[?#].*$/, '');
@@ -163,12 +177,23 @@ export function mount(el, ctx){
     // step is about is its title's tooltip, so nothing above the editor takes height.
     const onChange = (definition) => { state.definition = definition; report(); };
     if (window.FirstMateFlowScriptEditor?.mount && !state.map) {
+      // The editor is the whole step: it fills the sheet, its controls sit in the step's title row, Back and Continue
+      // float over it. The script is kept as a saved draft (unpublished until Continue) so the assistant can edit it too.
       ctx.setWide?.(true);
-      el.innerHTML = '<div class="gxl-editor" data-editor style="height:min(720px,calc(var(--gx-vh,100vh) - 230px));min-height:480px;border:1px solid #eaecf0;border-radius:14px;overflow:hidden"></div>';
-      player = window.FirstMateFlowScriptEditor.mount(el.querySelector('[data-editor]'), { definition: flow, embedded: true, onChange,
-        onSwitchToMap: window.FirstMateFlowEditor?.mount ? (definition) => { state.definition = definition; state.map = true; player?.destroy?.(); drawScript(); } : undefined });
+      const pane = el.closest('.gxs-step');
+      pane?.setAttribute('data-fill', ''); pane?.setAttribute('data-float-foot', '');
+      el.style.cssText = 'flex:1 1 auto;min-height:0;display:flex;flex-direction:column';
+      el.innerHTML = '<div data-editor style="flex:1 1 auto;min-height:0"></div>';
+      const mountEditor = (flowId) => {
+        if (!alive) return;
+        player = window.FirstMateFlowScriptEditor.mount(el.querySelector('[data-editor]'), { definition: flowId ? undefined : flow, flowId, embedded: true, autosaveDraft: !!flowId,
+          toolbarHost: ctx.actions || null, onChange,
+          onSwitchToMap: window.FirstMateFlowEditor?.mount ? (definition) => { state.definition = definition; state.map = true; player?.destroy?.(); drawScript(); } : undefined });
+      };
+      draftId().then(mountEditor, (error) => { console.warn('The script could not be saved as a draft; the assistant is off.', error); mountEditor(null); });
       return;
     }
+
     if (window.FirstMateFlowEditor?.mount) {
       ctx.setWide?.(true);
       el.innerHTML = `<div class="gxl">${window.FirstMateFlowScriptEditor ? `<button type="button" class="gxl-btn" data-script-view style="align-self:flex-start"><i class="fas fa-align-left"></i> ${T('script_view', 'Script view')}</button>` : ''}<div data-editor></div></div>`;
@@ -306,7 +331,7 @@ export function mount(el, ctx){
     destroy(){
       alive = false; player?.destroy?.(); el.removeEventListener('click', onClick); el.removeEventListener('change', onChange); el.removeEventListener('keydown', onKey);
       // What this step saved changes the page around it: the New menu reads its items and flows again.
-      if (part === 'script') ctx.setWide?.(false);
+      if (part === 'script') { ctx.setWide?.(false); const pane = el.closest('.gxs-step'); pane?.removeAttribute('data-fill'); pane?.removeAttribute('data-float-foot'); }
       if (part === 'new_menu' || part === 'script') { window.dispatchEvent(new CustomEvent('fm:flows:changed')); window.Portal?.appFlags?.load?.({ refresh: true }); }
     }
   };

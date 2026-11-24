@@ -37,6 +37,29 @@
     for (const key of keys) out = out.split(`[${key}]`).join(`{{answers.${key}}}`);
     return out;
   };
+  const TOKEN_WORDS = new Map(TOKENS.map(([template, word]) => [template, word]));
+  /** A line as HTML: its text, with every template as a pill that cannot be typed into. */
+  const pills = (value) => esc(value).replace(/\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g, (match, path) => {
+    const template = `{{${path}}}`, answer = path.startsWith('answers.');
+    const word = TOKEN_WORDS.get(template) || (answer ? path.slice(8).replace(/_/g, ' ') : path);
+    return `<span class="fse-tok${answer ? ' ans' : ''}" contenteditable="false" data-tpl="${esc(template)}">${esc(word)}</span>`;
+  });
+  /** An edited line back to text: pills become their templates, line breaks stay, typed [first name] becomes one. */
+  function readLine(node, keys){
+    let out = '';
+    const walk = (parent) => {
+      for (const child of parent.childNodes) {
+        if (child.nodeType === 3) out += child.nodeValue;
+        else if (child.nodeType === 1) {
+          if (child.dataset?.tpl) out += child.dataset.tpl;
+          else if (child.tagName === 'BR') out += '\n';
+          else { if ((child.tagName === 'DIV' || child.tagName === 'P') && out && !out.endsWith('\n')) out += '\n'; walk(child); }
+        }
+      }
+    };
+    walk(node);
+    return templated(out.replace(/\u00a0/g, ' ').replace(/\n$/, ''), keys);
+  }
   const INPUTS = [['text', 'Short text'], ['paragraph', 'Long text'], ['number', 'Number'], ['money', 'Money'], ['select', 'Pick one'], ['multi', 'Pick several'], ['yes_no', 'Yes / no'], ['date', 'Date'], ['phone', 'Phone'], ['email', 'Email'], ['address', 'Address']];
   const SAVES = [['', 'Only on this run'], ['contact.name', 'Contact name'], ['contact.email', 'Contact email'], ['contact.phone', 'Contact phone'], ['project.address', 'Project address'], ['project.title', 'Project title'], ['project.summary', 'Project summary'], ['project.notes', 'Project notes']];
 
@@ -69,26 +92,53 @@
 .fse-node .fse-stop{color:#7a5af8;font-size:10px}
 .fse-node.fse-ref{color:#98a2b3;font-weight:650;font-style:italic}
 .fse-node.fse-end{color:#98a2b3;font-weight:650}
+.fse-node.fse-end:hover{color:#475467}
+.fse-node.fse-end[data-current="true"]{color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.06)}
 .fse-main{position:relative;overflow:hidden;outline:none}
 .fse-viewport{position:absolute;inset:0;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 120px,#000 calc(100% - 110px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 120px,#000 calc(100% - 110px),transparent 100%)}
-.fse-track{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;align-items:center;gap:0;transition:transform .42s cubic-bezier(.2,.8,.2,1);padding:0 24px}
+.fse-track{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;align-items:center;gap:0;transition:transform .42s cubic-bezier(.2,.8,.2,1);padding:0 24px 0 64px}
 .fse[data-mode="edit"] .fse-track{padding-right:min(280px,24%)}
-.fse-gap{height:34px;width:min(640px,100%);display:flex;align-items:center;justify-content:center;position:relative}
+.fse-gap{height:34px;width:min(760px,100%);display:flex;align-items:center;justify-content:center;position:relative}
 .fse-gap::before{content:"";position:absolute;top:0;bottom:0;left:50%;border-left:2px dashed #d0d5dd}
 .fse-gap button{position:relative;z-index:1;width:24px;height:24px;border-radius:50%;border:1px solid #d0d5dd;background:#fff;color:#475467;cursor:pointer;opacity:0;transition:opacity .15s}
 .fse-gap:hover button,.fse-gap button:focus{opacity:1}
 .fse[data-mode="view"] .fse-gap button{display:none}
-.fse-card{width:min(640px,100%);background:#fff;border:1px solid #e4e7ec;border-radius:16px;box-shadow:0 1px 3px rgba(16,24,40,.06);padding:16px 18px;display:flex;flex-direction:column;gap:10px;transition:opacity .35s,box-shadow .2s;cursor:default}
+.fse-card{width:min(760px,100%);background:#fff;border:1px solid #e4e7ec;border-radius:16px;box-shadow:0 1px 3px rgba(16,24,40,.06);padding:20px 24px;display:flex;flex-direction:column;gap:14px;transition:opacity .35s,box-shadow .2s;cursor:default}
 .fse-card[data-dist="1"]{opacity:.6;cursor:pointer}
 .fse-card[data-dist="far"]{opacity:0;pointer-events:none}
 .fse-card[data-dist="0"]{box-shadow:0 10px 30px rgba(16,24,40,.1);border-color:#d0d5dd}
+.fse-card{position:relative}
 .fse-card-head{display:flex;align-items:center;gap:8px}
-.fse-num{font-size:11px;font-weight:900;color:#98a2b3}
-.fse-title{flex:1;font-weight:900;font-size:15px;border-radius:6px;padding:1px 4px;margin:-1px -4px;outline:none;min-width:0}
+.fse-num{position:absolute;right:calc(100% + 12px);top:20px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:900;color:#667085;background:#fff;border:1px solid #e4e7ec}
+.fse-card[data-dist="0"] .fse-num{color:#fff;background:var(--primary,#d93025);border-color:var(--primary,#d93025)}
+.fse-title{flex:1;font-weight:900;font-size:20px;letter-spacing:-.01em;line-height:1.3;border-radius:6px;outline:none;min-width:0}
+/* A word filled in for each lead: a pill, so it is clearly not typed text. */
+.fse-tok{display:inline-flex;align-items:center;gap:3px;margin:0 1px;padding:0 7px;border-radius:999px;background:#eef4ff;border:1px solid #c7d7fe;color:#3538cd;font-size:.86em;font-weight:800;line-height:1.55;vertical-align:baseline;white-space:nowrap;user-select:all}
+.fse-tok::before{content:"";width:5px;height:5px;border-radius:50%;background:#6172f3}
+.fse-tok.ans{background:#ecfdf3;border-color:#abefc6;color:#067647}
+.fse-tok.ans::before{background:#17b26a}
 .fse[data-mode="edit"] .fse-title:hover,.fse-title:focus{background:#f9fafb}
 .fse-say,.fse-note{white-space:pre-wrap;line-height:1.55;border-radius:8px;padding:2px 6px;margin:0 -6px;outline:none}
 .fse-say{font-size:16px;font-weight:600;color:#101828}
-.fse[data-kind="call"] .fse-say{font-size:17px}
+/* A call script: lines are said aloud (marked Say) under a call bar. A workflow: lines are instructions to follow. Same sizes. */
+.fse[data-kind="call"] .fse-say{border-left:3px solid var(--primary,#d93025);border-radius:0 8px 8px 0;padding-left:12px;margin-left:0}
+.fse[data-kind="call"] .fse-say::before{content:attr(data-say);display:block;font-size:10.5px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--primary,#d93025);margin-bottom:2px}
+.fse[data-kind="workflow"] .fse-say{font-weight:500;color:#344054}
+.fse-callbar,.fse-wfbar{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:10px;padding:7px 14px;border-radius:999px;font-size:12.5px;font-weight:750;white-space:nowrap;pointer-events:none}
+.fse-callbar{background:#101828;color:#fff;box-shadow:0 6px 18px rgba(16,24,40,.25)}
+.fse-callbar .fse-rec{display:inline-flex;align-items:center;gap:5px;color:#fda29b}
+.fse-callbar .fse-rec::before{content:"";width:8px;height:8px;border-radius:50%;background:#f04438}
+.fse-callbar span.dim{opacity:.7;font-weight:650}
+.fse-wfbar{background:#fff;border:1px solid #e4e7ec;color:#475467}
+.fse[data-kind="workflow"] .fse-callbar,.fse[data-kind="call"] .fse-wfbar{display:none}
+/* Inside a setup: the editor is the whole step; its controls sit in the step's title row; Back and Continue float. */
+.fse[data-embedded]{min-height:0;height:100%}
+.fse[data-toolbar="out"]{grid-template-rows:minmax(0,1fr)}
+.fse[data-toolbar="out"] .fse-top{display:none}
+.gxs-step:has(.fse[data-embedded]){padding:4px 0 0}
+.gxs-step:has(.fse[data-embedded]) .gxs-titlebar{padding:0 24px 10px;margin:0;border-bottom:1px solid #eaecf0;align-items:center}
+.gxs-step:has(.fse[data-embedded]) .gxs-body{margin:0}
+.fse-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .fse-note{font-size:13px;color:#667085;font-weight:650;display:flex;gap:6px}
 .fse-note i{margin-top:4px;color:#98a2b3}
 .fse[data-mode="edit"] .fse-say:hover,.fse[data-mode="edit"] .fse-note:hover{background:#f9fafb}
@@ -216,17 +266,23 @@
       return out;
     }
     const keys = () => array(def.steps).flatMap((step) => array(step.blocks)).filter((block) => block.kind === 'ask' || block.kind === 'choice').map((block) => block.key);
-    const change = () => { dirty = true; error = ''; options.onChange?.(clone(def)); drawTop(); };
+    let draftTimer = null;
+    const change = () => {
+      dirty = true; error = ''; options.onChange?.(clone(def)); drawTop();
+      // Inside a setup the flow is a saved draft (so the assistant can work on it): kept saved as you go, unpublished.
+      if (options.autosaveDraft && flowId) { clearTimeout(draftTimer); draftTimer = setTimeout(() => save({ draft: true }), 1200); }
+    };
 
     // ── Drawing ──────────────────────────────────────────────────────────
     function frame(){
-      const chat = !options.embedded && !!flowId && !!root.PlatformAssistant?.mountSurface;
-      el.innerHTML = `<div class="fse" data-mode="${mode}" data-kind="${esc(def.kind || 'workflow')}" data-chat="${chat ? 'on' : 'off'}">
-        <div class="fse-top" data-top></div>
+      const chat = !!flowId && !!root.PlatformAssistant?.mountSurface && options.chat !== false;
+      el.innerHTML = `<div class="fse" data-mode="${mode}" data-kind="${esc(def.kind || 'workflow')}" data-chat="${chat ? 'on' : 'off'}" ${options.embedded ? 'data-embedded' : ''} ${options.toolbarHost ? 'data-toolbar="out"' : ''}>
+        <div class="fse-top" data-top data-fse-top></div>
         <nav class="fse-tree" data-tree aria-label="${esc(L('steps', 'Steps'))}"></nav>
-        <div class="fse-main" data-main tabindex="0"><div class="fse-viewport"><div class="fse-track" data-track></div></div><div class="fse-hint" data-hint hidden></div></div>
+        <div class="fse-main" data-main tabindex="0"><div class="fse-callbar" aria-hidden="true"><i class="fas fa-phone"></i>${esc(L('callbar', 'On a call with [name]'))}<span class="fse-rec">${esc(L('recording', 'Recording'))}</span><span class="dim">${esc(L('callbar_end', 'Where the script ends sets the call result'))}</span></div><div class="fse-wfbar" aria-hidden="true"><i class="fas fa-list-check"></i>${esc(L('wfbar', 'Workflow: no call, each step is filled in'))}</div><div class="fse-viewport"><div class="fse-track" data-track></div></div><div class="fse-hint" data-hint hidden></div></div>
         <aside class="fse-chat"><div class="fse-chat-body" data-chat-host></div></aside>
       </div>`;
+      if (options.toolbarHost) { options.toolbarHost.innerHTML = '<div class="fse-toolbar" data-fse-top></div>'; options.toolbarHost.onclick = onClick; options.toolbarHost.oninput = onInput; }
       bind();
       if (chat) mountChat();
       draw();
@@ -234,20 +290,20 @@
     const $ = (selector) => el.querySelector(selector);
     /** The top bar. While someone types (the name, a line) only its state and Save change; `full` draws it all. */
     function drawTop(full = false){
-      const top = $('[data-top]'); if (!top) return;
+      const top = options.toolbarHost ? options.toolbarHost.querySelector('[data-fse-top]') : $('[data-top]'); if (!top) return;
       const state = saving ? L('saving', 'Saving…') : error ? error : dirty ? L('unsaved', 'Unsaved changes') : version ? `${L('saved', 'Saved')} · v${version}` : '';
       if (!full && top.firstElementChild) {
         const node = top.querySelector('.fse-state'); if (node) { node.textContent = state; node.classList.toggle('err', !!error); }
         const button = top.querySelector('[data-save]'); if (button) button.disabled = !dirty || saving;
         return;
       }
-      top.innerHTML = `<input class="fse-name" data-name value="${esc(def.name)}" aria-label="${esc(L('name', 'Name'))}" ${mode === 'view' ? 'readonly' : ''}>
+      top.innerHTML = `${options.toolbarHost ? '' : `<input class="fse-name" data-name value="${esc(def.name)}" aria-label="${esc(L('name', 'Name'))}" ${mode === 'view' ? 'readonly' : ''}>`}
         <div class="fse-seg" role="group" aria-label="${esc(L('kind', 'Kind'))}"><button type="button" data-kind="call" aria-pressed="${def.kind === 'call'}"><i class="fas fa-phone"></i>${esc(L('call', 'Call script'))}</button><button type="button" data-kind="workflow" aria-pressed="${def.kind !== 'call'}"><i class="fas fa-list-check"></i>${esc(L('workflow', 'Workflow'))}</button></div>
         <div class="fse-seg" role="group" aria-label="${esc(L('mode', 'Mode'))}"><button type="button" data-mode="edit" aria-pressed="${mode === 'edit'}" ${options.readOnly ? 'disabled' : ''}><i class="fas fa-pen"></i>${esc(L('edit', 'Edit'))}</button><button type="button" data-mode="view" aria-pressed="${mode === 'view'}"><i class="fas fa-eye"></i>${esc(L('view', 'View'))}</button></div>
         <span class="fse-spacer"></span>
         <span class="fse-state ${error ? 'err' : ''}" role="status">${esc(state)}</span>
         ${options.onSwitchToMap ? `<button type="button" class="fse-tb" data-map title="${esc(L('map_tip', 'The flowchart editor'))}"><i class="fas fa-diagram-project"></i>${esc(L('map', 'Map view'))}</button>` : ''}
-        ${!options.embedded && flowId ? `<button type="button" class="fse-tb" data-chat-toggle title="${esc(L('chat_tip', 'Edit by asking the assistant'))}"><i class="fas fa-wand-magic-sparkles"></i></button>` : ''}
+        ${flowId && root.PlatformAssistant?.mountSurface ? `<button type="button" class="fse-tb" data-chat-toggle title="${esc(L('chat_tip', 'Edit by asking the assistant'))}"><i class="fas fa-wand-magic-sparkles"></i></button>` : ''}
         ${!options.embedded ? `<button type="button" class="fse-tb primary" data-save ${!dirty || saving ? 'disabled' : ''}><i class="fas fa-floppy-disk"></i>${esc(L('save', 'Save'))}</button>` : ''}
         ${options.onClose ? `<button type="button" class="fse-tb" data-close aria-label="${esc(L('close', 'Close'))}"><i class="fas fa-xmark"></i></button>` : ''}`;
     }
@@ -268,7 +324,12 @@
         const branching = list.length > 1;
         for (const edge of list) {
           if (edge.to) walk(edge.to, depth + (branching ? 1 : 0));
-          else if (edge.outcome) { const out = array(def.outcomes).find((entry) => entry.id === edge.outcome); rows.push(`<div class="fse-node fse-end" style="padding-left:${6 + (depth + 1) * 12}px"><i class="fas fa-flag-checkered" aria-hidden="true"></i><span class="fse-node-name">${esc(out?.label || edge.outcome)}</span></div>`); }
+          else if (edge.outcome) {
+            // An ending is where a button goes: clicking it goes to that step with that button chosen.
+            const out = array(def.outcomes).find((entry) => entry.id === edge.outcome);
+            const on = id === current && edge.option && choices.get(id) === edge.option.id;
+            rows.push(`<button type="button" class="fse-node fse-end" data-go-end="${esc(id)}|${esc(edge.option?.id || '')}" data-current="${!!on}" style="padding-left:${6 + (depth + 1) * 12}px"><i class="fas fa-flag-checkered" aria-hidden="true"></i><span class="fse-node-name">${esc(out?.label || edge.outcome)}</span></button>`);
+          }
         }
       };
       walk(def.start, 0);
@@ -280,12 +341,12 @@
       const sel = (part) => selected && selected.step === step.id && selected.block === block.id && (!part || selected.part === part) ? 'true' : 'false';
       const edit = mode === 'edit';
       switch (block.kind) {
-        case 'say': return `<div class="fse-say" data-block="${esc(block.id)}" data-text ${edit ? 'contenteditable="plaintext-only" spellcheck="true"' : ''} data-selected="${sel()}">${esc(friendly(block.text))}</div>`;
-        case 'note': return `<div class="fse-note" data-block="${esc(block.id)}" data-selected="${sel()}"><i class="fas fa-circle-info" aria-hidden="true"></i><span data-text ${edit ? 'contenteditable="plaintext-only"' : ''}>${esc(friendly(block.text))}</span></div>`;
+        case 'say': return `<div class="fse-say" data-say="${esc(L('say', 'Say'))}" data-block="${esc(block.id)}" data-text ${edit ? 'contenteditable="true" spellcheck="true"' : ''} data-selected="${sel()}">${pills(block.text)}</div>`;
+        case 'note': return `<div class="fse-note" data-block="${esc(block.id)}" data-selected="${sel()}"><i class="fas fa-circle-info" aria-hidden="true"></i><span data-text ${edit ? 'contenteditable="true"' : ''}>${pills(block.text)}</span></div>`;
         case 'ask': return `<div class="fse-input" data-block="${esc(block.id)}" data-selected="${sel()}"><label>${esc(block.label || L('no_label', 'Untitled input'))}${block.required ? ' <span style="color:#b42318">*</span>' : ''}${edit ? ` <span class="fse-var">${esc(block.key)}</span>` : ''}</label>${inputHtml(block)}</div>`;
         case 'action': {
           const copy = object(block.input).text;
-          return `<div class="fse-action" data-block="${esc(block.id)}" data-selected="${sel()}"><i class="fas ${block.automation === 'communications.sendSms.v1' ? 'fa-comment-sms' : block.automation === 'communications.sendEmail.v1' ? 'fa-envelope' : 'fa-bolt'}" aria-hidden="true"></i><strong>${esc(block.label || block.automation)}</strong>${copy !== undefined ? `<div class="fse-copy" data-copy ${edit ? 'contenteditable="plaintext-only"' : ''}>${esc(friendly(copy))}</div>` : block.preview ? `<div class="fse-copy">${esc(block.preview)}</div>` : ''}</div>`;
+          return `<div class="fse-action" data-block="${esc(block.id)}" data-selected="${sel()}"><i class="fas ${block.automation === 'communications.sendSms.v1' ? 'fa-comment-sms' : block.automation === 'communications.sendEmail.v1' ? 'fa-envelope' : 'fa-bolt'}" aria-hidden="true"></i><strong>${esc(block.label || block.automation)}</strong>${copy !== undefined ? `<div class="fse-copy" data-copy ${edit ? 'contenteditable="true"' : ''}>${pills(copy)}</div>` : block.preview ? `<div class="fse-copy">${esc(block.preview)}</div>` : ''}</div>`;
         }
         case 'contact': return `<span class="fse-chip" data-block="${esc(block.id)}"><i class="fas fa-address-book"></i>${esc(L('finds_contact', 'Finds or makes the contact'))}</span>`;
         case 'project': return `<span class="fse-chip" data-block="${esc(block.id)}"><i class="fas fa-folder-plus"></i>${esc(block.mode === 'create_project' ? L('makes_project', 'Makes the project') : L('makes_lead', 'Makes the lead'))}</span>`;
@@ -323,7 +384,7 @@
       const step = stepOf(def, id), edit = mode === 'edit';
       const number = array(def.steps).indexOf(step) + 1;
       return `<section class="fse-card" data-card="${esc(id)}" data-dist="${dist === 0 ? '0' : Math.abs(dist) === 1 ? '1' : 'far'}">
-        <div class="fse-card-head"><span class="fse-num">${number}</span><div class="fse-title" data-title ${edit ? 'contenteditable="plaintext-only"' : ''}>${esc(step.title)}</div></div>
+        <span class="fse-num" aria-hidden="true">${number}</span><div class="fse-card-head"><div class="fse-title" data-title ${edit ? 'contenteditable="plaintext-only"' : ''}>${esc(step.title)}</div></div>
         ${array(step.blocks).filter((block) => !['choice', 'outcome', 'buttons'].includes(block.kind)).map((block) => blockHtml(step, block)).join('')}
         ${edit ? `<div class="fse-add"><button type="button" data-add="say">${esc(L('add_say', '+ Line'))}</button><button type="button" data-add="note">${esc(L('add_note', '+ Note'))}</button><button type="button" data-add="ask">${esc(L('add_input', '+ Input'))}</button><button type="button" data-add="text">${esc(L('add_text', '+ Send a text'))}</button></div>` : ''}
         ${buttonsHtml(step)}
@@ -537,6 +598,8 @@
       root_.addEventListener('click', onClick);
       root_.addEventListener('input', onInput);
       root_.addEventListener('focusin', onFocus);
+      // A [word] typed into a line becomes its pill once you leave the line.
+      root_.addEventListener('focusout', (event) => { const line = event.target.closest?.('[data-text],[data-copy]'); if (line && /\[[^\]]+\]/.test(line.textContent)) { const card = line.closest('[data-card]'); if (card) refreshCard(card.dataset.card); } });
       root_.addEventListener('mouseover', (event) => { const node = event.target.closest('.fse-node[data-go]'); const next = node ? node.dataset.go : null; if (next !== lit) { lit = next; drawTree(); } });
       root_.addEventListener('mouseleave', () => { if (lit) { lit = null; drawTree(); } });
       $('[data-main]').addEventListener('wheel', onWheel, { passive: false });
@@ -560,14 +623,17 @@
       const step = stepOf(def, card.dataset.card);
       if (event.target.matches('[data-title]')) { step.title = event.target.textContent.replace(/\s+/g, ' ').trim(); change(); drawTree(); return; }
       const blockNode = event.target.closest('[data-block]'), block = array(step.blocks).find((entry) => entry.id === blockNode?.dataset.block);
-      if (block && event.target.matches('[data-text]')) { block.text = templated(event.target.innerText.replace(/\n$/, ''), keys()); change(); return; }
-      if (block && event.target.matches('[data-copy]')) { const text = templated(event.target.innerText.replace(/\n$/, ''), keys()); block.input = { ...object(block.input), text }; block.preview = text; change(); return; }
+      const line = event.target.closest('[data-text],[data-copy]');
+      if (block && line?.matches('[data-text]')) { block.text = readLine(line, keys()); change(); return; }
+      if (block && line?.matches('[data-copy]')) { const text = readLine(line, keys()); block.input = { ...object(block.input), text }; block.preview = text; change(); return; }
       if (event.target.dataset.answer) answers[event.target.dataset.answer] = event.target.value;
     }
     function onClick(event){
       const t = event.target;
-      const top = t.closest('[data-top] button, [data-top] input'); if (top) return onTop(top);
+      const top = t.closest('[data-fse-top] button, [data-fse-top] input'); if (top) return onTop(top);
       const node = t.closest('[data-go]'); if (node) return jump(node.dataset.go);
+      const end = t.closest('[data-go-end]');
+      if (end) { const [stepId, optionId] = end.dataset.goEnd.split('|'); if (optionId) choices.set(stepId, optionId); jump(stepId); if (optionId && mode === 'edit') { selected = { step: stepId, option: optionId }; drawBox(); } return; }
       const card = t.closest('[data-card]');
       if (card && card.dataset.dist !== '0') { go(path().indexOf(card.dataset.card)); return; }
       const insert = t.closest('[data-insert]'); if (insert) return insertAfter(insert.dataset.insert);
@@ -635,23 +701,21 @@
     }
 
     // ── Saving and the assistant ────────────────────────────────────────
-    async function save(){
+    async function save(how = {}){
       if (saving || !dirty) return;
       saving = true; error = ''; drawTop();
       try {
-        const body = { definition: def, ...(version ? { expected_version: version } : {}) };
+        const body = { definition: def, ...(version ? { expected_version: version } : {}), ...(how.draft ? { publish: false } : {}) };
         const result = flowId ? await api(`/flows/${encodeURIComponent(flowId)}`, { method: 'PUT', body }) : await api('/flows', { method: 'POST', body });
         flowId = result.flow.id; version = result.flow.version; def = clone(result.flow.definition); dirty = false;
-        root.dispatchEvent(new CustomEvent('fm:flows:changed'));
-        options.onSave?.(result.flow);
-        toast(L('saved_toast', 'Saved.'));
+        if (!how.draft) { root.dispatchEvent(new CustomEvent('fm:flows:changed')); options.onSave?.(result.flow); toast(L('saved_toast', 'Saved.')); }
       } catch (failure) { error = clean(failure?.data?.message || failure?.message) || L('save_failed', 'That didn’t save.'); }
       saving = false; drawTop();
     }
     async function reload(){
       if (!flowId || dirty) return;
       const result = await api(`/flows/${encodeURIComponent(flowId)}?latest=1`);
-      def = clone(result.flow.definition); version = result.flow.version; draw();
+      def = clone(result.flow.definition); version = result.flow.version; options.onChange?.(clone(def)); draw();
     }
     function mountChat(){
       const host = $('[data-chat-host]'); if (!host || assistant) return;
@@ -683,7 +747,7 @@
       get definition(){ return def ? clone(def) : null; },
       get dirty(){ return dirty; },
       save,
-      destroy(){ alive = false; document.removeEventListener('keydown', onDocKey); assistant?.destroy?.(); el.innerHTML = ''; }
+      destroy(){ alive = false; clearTimeout(draftTimer); if (options.toolbarHost) { options.toolbarHost.innerHTML = ''; options.toolbarHost.onclick = null; options.toolbarHost.oninput = null; } document.removeEventListener('keydown', onDocKey); assistant?.destroy?.(); el.innerHTML = ''; }
     };
   }
 
