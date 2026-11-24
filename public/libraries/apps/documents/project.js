@@ -3795,7 +3795,7 @@
       const dataBtn = root.querySelector('[data-fmdx-data-toggle]');
       if (dataBtn) {
         dataBtn.disabled = workflowMode;
-        dataBtn.title = workflowMode ? 'The Data tray lives in the editor view' : '';
+        dataBtn.title = workflowMode ? 'The Data tray lives in the editor view' : 'Data';
       }
       syncDeliverableButtons();
       syncTrayOffset();
