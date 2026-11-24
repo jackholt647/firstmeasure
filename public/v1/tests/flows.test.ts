@@ -82,7 +82,7 @@ test("a flow plays step by step: branches, records, saved answers, actions and o
   assert.equal((await contacts.readContact(ORG, String(view.contact!.id))).name, "Ada Stone", "finding a contact never rewrites it");
 
   // The new-lead call: no answer sends the text it shows and ends as no answer; answered routes by the choice.
-  const call = await flows.saveFlow(owner, { id: "new_lead_call", definition: newLeadFlow({ contact: "call", no_answer: ["text", "retry"], questions: SUGGESTED_QUESTIONS.slice(0, 2), board_id: "" }) });
+  const call = await flows.saveFlow(owner, { id: "new_lead_call", definition: newLeadFlow({ contact: "call", no_answer: ["text", "retry"], questions: SUGGESTED_QUESTIONS.filter((question) => ["need", "address"].includes(question.key)), board_id: "" }) });
   assert.equal(call.kind, "call");
   let run = await flows.startRun(rep, { flow_id: "new_lead_call", source: { kind: "crm", project_id: lead.id, contact_id: view.contact!.id } });
   assert.match(String((run.step.blocks[0] as { text?: string }).text), /Call Ada Stone at/);
