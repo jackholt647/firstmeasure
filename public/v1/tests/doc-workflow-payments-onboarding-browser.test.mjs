@@ -51,8 +51,10 @@ test('first payment terms offer setup; the deposit says where it is paid; review
   // Only the payment due on signature is marked, with a Set up pill.
   assert.equal(await page.locator('[data-fmdw-sched-pay]').count(),1);
   assert.equal(await page.locator('[data-fmdw-sched-pay="setup"]').count(),1);
-  assert.match(await page.locator('[data-fmdw-sched-pay]').textContent(),/customer portal/);
+  assert.match(await page.locator('[data-fmdw-sched-pay]').textContent(),/pay the deposit in their customer portal/);
   assert.equal(await page.locator('[data-fmdw-sched-pay] [data-fmdw-pay-setup]').count(),1);
+  // GP-168: by the schedule's title, above the milestones, not between the deposit and the next payment.
+  assert.equal(await page.evaluate(()=>{const note=document.querySelector('[data-fmdw-sched-pay]'),card=document.querySelector('.fmdw-sched');return !card.contains(note)&&!!(note.compareDocumentPosition(card)&Node.DOCUMENT_POSITION_FOLLOWING);}),true);
   // Skippable.
   await page.locator('[data-fmdw-pay-skip]').click();
   assert.equal(await page.locator('[data-fmdw-pay-callout]').count(),0);
