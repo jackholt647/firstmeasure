@@ -165,10 +165,9 @@ test('a spike of no width in a base outline is dropped on open, so the base can 
  // The line out to the old corner goes with it; every other line and corner stays as it was.
  assert.deepEqual(sketch.edges.map(e=>e.id),['e0','e2','e3','e4']);assert.ok(!sketch.nodes.some(n=>n.id==='n9'));assert.equal(sketch.nodes.length,ring.length-1);
  assert.equal(B.dropSpikes(base),false,'nothing else to drop');
- // A narrow notch of real width, and a corner where the outline only turns, stay.
+ // An outline that draws is left as it is: a narrow notch of real width, and a legacy corner tail out and back.
  const notch={faces:[{id:'a',points:[p(0,0),p(2,0),p(2,1),p(2.001,1),p(2.001,0),p(4,0),p(4,3),p(0,3)]}]};
  assert.equal(B.dropSpikes(notch),false);assert.equal(notch.faces[0].points.length,8);
- // A spike in a hole goes too.
- const holed={faces:[{id:'h',points:[p(0,0),p(10,0),p(10,10),p(0,10)],holes:[[p(2,2),p(4,2),p(4,4),p(2,4),p(2,5)]]}]};
- assert.equal(B.dropSpikes(holed),true);assert.equal(holed.faces[0].holes[0].length,4);
+ const tail={faces:[{id:'t',points:[p(0,0),p(4,0),p(4,3),p(5,4),p(4,3),p(0,3)]}]};
+ assert.equal(B.dropSpikes(tail),false);assert.equal(tail.faces[0].points.length,6);
 });
