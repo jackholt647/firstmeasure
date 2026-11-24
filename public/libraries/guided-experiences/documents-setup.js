@@ -255,6 +255,8 @@ const css = `
 .gxd-copy-view .gxd-doc{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:14px;box-sizing:border-box}
 .gxd-copy-view .gxd-doc>div{margin:0 auto}
 .gxd-copy-view [data-node-id].gxd-copy-mark{outline:2px solid var(--primary,#d93025);outline-offset:3px;border-radius:2px}
+.gxd-copy-view [data-node-id].gxd-copy-pick{cursor:pointer}
+.gxd-copy-view [data-node-id].gxd-copy-pick:hover:not(.gxd-copy-mark){outline:1px dashed color-mix(in srgb,var(--primary,#d93025) 55%,transparent);outline-offset:3px;border-radius:2px}
 /* Advanced: a link beside the step's title, only when the organization has the template editor (GP-13). */
 .gxs-titlebar:has(.gxd-studio-link) h2{flex:0 1 auto}
 .gxd-studio-link{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px;border:0;border-radius:7px;background:none;font:inherit;font-size:13px;font-weight:600;color:#475467;cursor:pointer}
@@ -1456,14 +1458,24 @@ export function mount(el, ctx){
         handle = Renderer.render(docHost.firstElementChild, { document: definition, theme: preview.theme, themeContext: { overrides: object(preview.theme_vars) }, widgetData: object(preview.widget_data), mode: 'static', scale: width / (612 * 96 / 72) });
       } catch (failure) { docHost.textContent = clean(failure?.message); }
       docHost.scrollTop = keep;
+      // Once drawn, the words a field changes can be picked in the document too (GP-166: a click goes to that field), and
+      // the words of the field being typed in stay marked.
+      const drawn = handle;
+      Promise.resolve(drawn?.ready?.()).catch(() => null).then(() => {
+        if (!alive || handle !== drawn) return;
+        fieldsHost.querySelectorAll('[data-copy]').forEach((field) => docHost.querySelector(`[data-node-id="${CSS.escape(field.dataset.copy)}"]`)?.classList.add('gxd-copy-pick'));
+        if (fieldsHost.contains(document.activeElement)) mark(document.activeElement.closest?.('[data-copy]')?.dataset.copy || '', false);
+      });
     }
     const redraw = () => { clearTimeout(timer); timer = setTimeout(() => { if (alive) draw(); }, 180); };
-    /** The text a field is about, in the document: scrolled to and marked while the field has focus. */
-    function mark(id){
+    /** The text a field is about, in the document: scrolled to (unless it was picked there) and marked while the field has focus. */
+    let picked = false;
+    function mark(id, scroll = !picked){
       docHost.querySelectorAll('.gxd-copy-mark').forEach((node) => node.classList.remove('gxd-copy-mark'));
       const node = id ? docHost.querySelector(`[data-node-id="${CSS.escape(id)}"]`) : null;
       if (!node) return;
       node.classList.add('gxd-copy-mark');
+      if (!scroll) return;
       const top = node.getBoundingClientRect().top - docHost.getBoundingClientRect().top + docHost.scrollTop;
       docHost.scrollTo({ top: Math.max(0, top - 60), behavior: reducedMotion() ? 'auto' : 'smooth' });
     }
@@ -1681,6 +1693,31 @@ export function mount(el, ctx){
       setActive(field.closest('.gxd-copy-sec')?.dataset.sec || '');
     };
     const onBlur = () => mark('');
+    /**
+     * A click on the document picks the wording under it (GP-166): the nearest text a field changes, whose field is
+     * scrolled into the column, given focus and marked, as focusing that field would. The document stays where it is.
+     */
+    const onPick = (event) => {
+      if (!data) return;
+      let node = event.target.closest?.('[data-node-id]'), field = null;
+      while (node && docHost.contains(node) && !field) {
+        field = fieldsHost.querySelector(`[data-copy="${CSS.escape(node.dataset.nodeId)}"]`);
+        if (!field) node = node.parentElement?.closest('[data-node-id]');
+      }
+      if (!field) return;
+      event.preventDefault();
+      const box = fieldsHost.getBoundingClientRect(), at = field.getBoundingClientRect();
+      if (at.top < box.top + 8 || at.bottom > box.bottom - 8) {
+        const top = at.top - box.top + fieldsHost.scrollTop - Math.max(8, (box.height - at.height) / 3);
+        fieldsHost.scrollTo({ top: Math.max(0, top), behavior: reducedMotion() ? 'auto' : 'smooth' });
+      }
+      picked = true;
+      try { field.focus({ preventScroll: true }); } finally { picked = false; }
+      // Focus already there (a second click on the same words) marks nothing new: mark it here.
+      mark(field.dataset.copy, false);
+      setActive(field.closest('.gxd-copy-sec')?.dataset.sec || '');
+    };
+    docHost.addEventListener('click', onPick);
     fieldsHost.addEventListener('input', onInput);
     fieldsHost.addEventListener('focusin', onFocus);
     fieldsHost.addEventListener('focusout', onBlur);
@@ -1753,6 +1790,7 @@ export function mount(el, ctx){
         alive = false; clearTimeout(timer); observer?.disconnect(); fieldsObserver?.disconnect(); drop(lifted);
         void closeStudio(false);
         advanced?.removeEventListener('click', onAdvanced); advanced?.remove();
+        docHost.removeEventListener('click', onPick);
         fieldsHost.removeEventListener('input', onInput); fieldsHost.removeEventListener('focusin', onFocus); fieldsHost.removeEventListener('focusout', onBlur);
         fieldsHost.removeEventListener('scroll', below); more.removeEventListener('click', onMore); nav.removeEventListener('click', onNav);
         more.removeEventListener('pointerdown', onPullDown); more.removeEventListener('pointermove', onPullMove); more.removeEventListener('pointerup', onPullUp); more.removeEventListener('pointercancel', onPullUp);
