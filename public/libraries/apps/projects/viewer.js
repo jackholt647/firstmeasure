@@ -93,7 +93,6 @@
     const instantMiss = String(p?.instant_rejection_reason || '').trim().toLowerCase() === 'no_structure_at_pin';
     const noCoverageHtml =
       (globalThis.PlatformLanguage?.text('projects','m_9cf11b8ab925ce',"We do not currently have coverage for this address. ") ?? "We do not currently have coverage for this address. ") +
-      (globalThis.PlatformLanguage?.text('projects','m_93f718cb51bafd',"We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. ") ?? "We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. ") +
       (globalThis.PlatformLanguage?.text('projects','m_ea8d59f20b2ea6',"We've logged your interest in structures like this and will prioritize being able to cover these in the near future. ") ?? "We've logged your interest in structures like this and will prioritize being able to cover these in the near future. ") +
       `We apologize for any inconvenience this may have caused.<br><br>` +
       `<strong>${(globalThis.PlatformLanguage?.htmlText("projects","m_f6128467e18fe0","Note:") ?? "Note:")}</strong> Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood.`;

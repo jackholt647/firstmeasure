@@ -375,3 +375,22 @@ test("a rejected order's summary shows its reason, why, the refund and the card'
   assert.match(fn(measurements, 'reportSummaryHtml'), /<div class="r-report-summary-grid">\s*\$\{rejectionSummarySectionHtml\(\)\}/);
   assert.match(fn(measurements, 'rejectionSummarySectionHtml'), /if \(!reportOrderIsRejected\(\)\) return '';/);
 });
+
+// FM-635: the coverage rejection (email and stored customer copy) no longer claims "95% of all buildings";
+// its body is the two paragraphs Jack asked for, and the email keeps its title, address and credit line.
+test('the coverage rejection copy drops the 95% sentence and keeps title, address and credit', () => {
+  const run = rejectionCopy();
+  const roof = JSON.stringify({id: 'roof_fixture', address: '1 Main St', rejection_reason: 'no_height_map', refund_issued: true, refund_amount: 25});
+  assert.deepEqual([...run(`buildRejectionMessageParagraphs(${roof})`)], [
+    "We do not currently have coverage for this address. We've logged your interest in structures like this and will prioritize being able to cover these in the near future. We apologize for any inconvenience this may have caused.",
+    "Note: Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood."
+  ]);
+  for (const body of [run(`buildRejectionEmailTextBody(${roof})`), run(`buildRejectionEmailHtmlBody(${roof})`)]) {
+    assert.doesNotMatch(body, /95%|actively working on increasing/);
+    assert.match(body, /Unable to complete roof report/);
+    assert.match(body, /1 Main St/);
+    assert.match(body, /A credit of \$25 has been refunded/);
+  }
+  // The in-app banner says the same.
+  assert.doesNotMatch(fn(viewer, 'buildCoverageRejectionDisclaimer'), /95%/);
+});

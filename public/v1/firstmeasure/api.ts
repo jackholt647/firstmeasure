@@ -16270,7 +16270,7 @@ function buildRejectionMessageParagraphs(project: Record<string, unknown>) {
 
   const noCoverage = [
 
-    "We do not currently have coverage for this address. We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. We've logged your interest in structures like this and will prioritize being able to cover these in the near future. We apologize for any inconvenience this may have caused.",
+    "We do not currently have coverage for this address. We've logged your interest in structures like this and will prioritize being able to cover these in the near future. We apologize for any inconvenience this may have caused.",
 
     "Note: Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood."
 
