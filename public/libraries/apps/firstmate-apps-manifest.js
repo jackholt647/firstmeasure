@@ -305,7 +305,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261123-gp153-minimized-bars'), versionedBundle('project-request/app.js', '20261123-gp155-call-tray')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261124-gp170-theme'), versionedBundle('project-request/app.js', '20261124-gp170-theme')]
     },
     {
       id: 'firstmeasure.order',
@@ -901,7 +901,7 @@
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_c1ae5cde2c02d6","Onboarding Wizard") ?? "Onboarding Wizard"),
       kind: 'modal_app',
       surfaces: ['modal'],
-      bundles: [versionedBundle('onboarding/wizard.js', '20261118-fm595')]
+      bundles: [versionedBundle('onboarding/wizard.js', '20261124-gp170')]
     },
     {
       id: 'promo.bonus_upfront_match',

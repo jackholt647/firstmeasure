@@ -339,6 +339,9 @@
     } catch(e){ return hex || '#D93025'; }
   }
 
+  /* Website logos already read through the server, by URL: the PNG saveBranding uploads. */
+  const logoDataUrls = new Map();
+
   async function fetchImageAsDataUrl(url){
     try {
       const fd = new FormData();
@@ -354,6 +357,8 @@
     return null;
   }
 
+  /* Reads a primary and a secondary brand color from a drawn logo. Resolves null when the pixels cannot be read
+     (a cross-origin image taints the canvas) or the logo has no opaque pixels, so the caller keeps the current colors. */
   function extractColors(imgEl){
     return new Promise((resolve) => {
       try {
@@ -364,36 +369,43 @@
         ctx.drawImage(imgEl, 0, 0, size, size);
         const data = ctx.getImageData(0, 0, size, size).data;
 
+        /* Each bucket keeps the sum of its pixels, so the color it gives is the logo's own, not the bucket's corner. */
         const buckets = {};
         for (let i = 0; i < data.length; i += 4) {
           const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
           if (a < 128) continue;
-          const qr = Math.round(r/16)*16, qg = Math.round(g/16)*16, qb = Math.round(b/16)*16;
-          const key = `${Math.min(255,qr)},${Math.min(255,qg)},${Math.min(255,qb)}`;
-          buckets[key] = (buckets[key]||0) + 1;
+          const key = `${Math.round(r/16)},${Math.round(g/16)},${Math.round(b/16)}`;
+          const bucket = buckets[key] || (buckets[key] = { n: 0, r: 0, g: 0, b: 0 });
+          bucket.n++; bucket.r += r; bucket.g += g; bucket.b += b;
         }
-        const sorted = Object.entries(buckets).sort((a,b) => b[1]-a[1]);
-        if (sorted.length === 0) {
-          resolve({ primary:'#D93025', secondary:'#960000' });
-          return;
-        }
+        const sorted = Object.values(buckets)
+          .sort((a, b) => b.n - a.n)
+          .map(bk => ({ n: bk.n, rgb: [Math.round(bk.r/bk.n), Math.round(bk.g/bk.n), Math.round(bk.b/bk.n)] }));
+        if (sorted.length === 0) { resolve(null); return; }
 
-        const parseCSV = (csv) => csv.split(',').map(Number);
-        const toHex = (rgb) => '#' + rgb.map(v => Math.min(255,v).toString(16).padStart(2,'0')).join('').toUpperCase();
+        const toHex = (rgb) => '#' + rgb.map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2,'0')).join('').toUpperCase();
         const colorDist = (a, b) => Math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2);
         const isNearWhite = (rgb) => rgb[0] > 230 && rgb[1] > 230 && rgb[2] > 230;
         const isNearBlack = (rgb) => rgb[0] < 25 && rgb[1] < 25 && rgb[2] < 25;
+        const chroma = (rgb) => Math.max(...rgb) - Math.min(...rgb);
+        const lum = (rgb) => 0.299*rgb[0] + 0.587*rgb[1] + 0.114*rgb[2];
 
-        let primaryRGB = parseCSV(sorted[0][0]);
-        for (let i = 0; i < sorted.length; i++){
-          const rgb = parseCSV(sorted[i][0]);
-          if (!isNearWhite(rgb) && !isNearBlack(rgb)) { primaryRGB = rgb; break; }
+        /* The primary is the logo's most used vivid color when it has a real share of the logo: a green mark beside
+           dark lettering makes the brand green, not near-black. Otherwise the most used color that is not white or black. */
+        const inked = sorted.filter(c => !isNearWhite(c.rgb)).reduce((sum, c) => sum + c.n, 0);
+        const vivid = sorted.find(c => chroma(c.rgb) >= 64 && lum(c.rgb) >= 40 && !isNearWhite(c.rgb) && c.n >= inked * 0.04);
+        let primaryRGB = vivid ? vivid.rgb : sorted[0].rgb;
+        if (!vivid) {
+          for (let i = 0; i < sorted.length; i++){
+            const rgb = sorted[i].rgb;
+            if (!isNearWhite(rgb) && !isNearBlack(rgb)) { primaryRGB = rgb; break; }
+          }
         }
 
         const MIN_DIST = 80;
         let secondaryRGB = null;
         for (let i = 0; i < sorted.length; i++){
-          const rgb = parseCSV(sorted[i][0]);
+          const rgb = sorted[i].rgb;
           if (colorDist(rgb, primaryRGB) > MIN_DIST) { secondaryRGB = rgb; break; }
         }
 
@@ -401,11 +413,10 @@
           secondaryRGB = [85, 85, 85];
         }
 
-        const lum = (rgb) => 0.299*rgb[0] + 0.587*rgb[1] + 0.114*rgb[2];
         if (isNearWhite(secondaryRGB)) {
           let darkAlt = null;
           for (let i = 0; i < sorted.length; i++){
-            const rgb = parseCSV(sorted[i][0]);
+            const rgb = sorted[i].rgb;
             if (lum(rgb) < 80 && colorDist(rgb, primaryRGB) > MIN_DIST) {
               darkAlt = rgb; break;
             }
@@ -415,7 +426,7 @@
         if (isNearWhite(primaryRGB)) {
           let darkAlt = null;
           for (let i = 0; i < sorted.length; i++){
-            const rgb = parseCSV(sorted[i][0]);
+            const rgb = sorted[i].rgb;
             if (lum(rgb) < 80 && colorDist(rgb, secondaryRGB) > MIN_DIST) {
               darkAlt = rgb; break;
             }
@@ -429,7 +440,7 @@
 
         resolve({ primary: toHex(primaryRGB), secondary: toHex(secondaryRGB) });
       } catch(e){
-        resolve({ primary:'#D93025', secondary:'#960000' });
+        resolve(null);
       }
     });
   }
@@ -3171,20 +3182,25 @@
       setLogoCollapsed();
       updatePreview();
 
-      /* Extract colors */
+      /* Extract colors. The website's image cannot be read from the page (its canvas is tainted), so it is read
+         through the server, which also draws an SVG logo into a PNG (GP-170). A site that allows cross-origin
+         reads is tried directly when the server cannot fetch it. */
       const dataUrl = await fetchImageAsDataUrl(url);
-      if (dataUrl) {
-        const proxyImg = new Image();
-        proxyImg.onload = async () => {
-          const colors = await extractColors(proxyImg);
-          brandState.primary = colors.primary;
-          brandState.secondary = colors.secondary;
-          brandState.colorsExtracted = true;
-          syncColorInputs();
-          updatePreview();
-        };
-        proxyImg.src = dataUrl;
-      }
+      if (brandState.logoUrl !== url) return;
+      if (dataUrl) logoDataUrls.set(url, dataUrl);
+      const colors = await new Promise((resolve) => {
+        const readImg = new Image();
+        if (!dataUrl) readImg.crossOrigin = 'anonymous';
+        readImg.onload = () => extractColors(readImg).then(resolve);
+        readImg.onerror = () => resolve(null);
+        readImg.src = dataUrl || url;
+      });
+      if (!colors || brandState.logoUrl !== url) return;
+      brandState.primary = colors.primary;
+      brandState.secondary = colors.secondary;
+      brandState.colorsExtracted = true;
+      syncColorInputs();
+      updatePreview();
     }
 
     /* Show the upload/editing state */
@@ -3473,6 +3489,7 @@
 
       img.onload = async () => {
         const colors = await extractColors(img);
+        if (!colors || brandState.logoUrl !== url) return;
         brandState.primary = colors.primary;
         brandState.secondary = colors.secondary;
         brandState.colorsExtracted = true;
@@ -3626,7 +3643,7 @@
       if (!brandState.logoFile && brandState.logoUrl
           && brandState.logoUrl !== DEFAULT_LOGO
           && !brandState.logoUrl.startsWith('organizations/')) {
-        const dataUrl = await fetchImageAsDataUrl(brandState.logoUrl);
+        const dataUrl = logoDataUrls.get(brandState.logoUrl) || await fetchImageAsDataUrl(brandState.logoUrl);
         if (dataUrl) {
           try {
             const r = await fetch(dataUrl);

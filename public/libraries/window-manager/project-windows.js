@@ -242,6 +242,24 @@
     if (!usable) { candidate.layer.remove(); return null; }
     return candidate;
   }
+  // Every project window, and the spare, is a portal document that read the organization's theme when it booted.
+  // When the portal's theme changes (the onboarding wizard's colors, Company settings), each one takes the new theme
+  // at once rather than keeping the old colors until the page is reloaded (GP-170). A spare still booting is renewed.
+  let themeKey = '';
+  function themeChanged(event){
+    const theme = event?.detail || {};
+    const key = [theme.primary, theme.secondary, theme.logo, theme.name].join('|');
+    if (key === themeKey) return;
+    themeKey = key;
+    for (const record of records.values()) {
+      try { record.frame.contentWindow?.__applyTheme?.(theme); } catch (_) {}
+    }
+    if (!spare) return;
+    let applied = false;
+    try { const child = spare.frame.contentWindow; if (spare.api && typeof child?.__applyTheme === 'function') { child.__applyTheme(theme); applied = true; } } catch (_) {}
+    if (!applied) { discardSpare(); scheduleSpare(); }
+  }
+  if (ownsProjectWindows) root.addEventListener('fm:theme:updated', themeChanged);
   // Not sooner: a spare booting beside the portal's own boot slows both (a project link took twice as long). A
   // link or reload that names a project boots none until that project's window has loaded.
   if (ownsProjectWindows && typeof root.PlatformCommerce?.onReady === 'function' && !new URLSearchParams(root.location.search).get('project')) root.PlatformCommerce.onReady(() => scheduleSpare(2500));
