@@ -275,7 +275,10 @@ const css = `
 .gxd-first-lead{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:#ecfdf3;color:#05603a!important;font-size:13px!important}
 .gxd-first-lead i{font-size:15px}
 .gxd-first-app{position:relative;flex:1 1 auto;min-height:0;overflow:hidden;border-radius:10px}
-.gxd-first-app .fmdx-editor-top,.gxd-first-app .fmdx-doc-card-row{display:none!important}
+.gxd-first-app .fmdx-doc-card-row,.gxd-first-app .fmdx-editor-top:not(:has(>[data-fmdx-mode-toggle]:not([hidden]))){display:none!important}
+/* In the editor ("Edit manually") the bar keeps only its way back to the steps (GP-169). */
+.gxd-first-app .fmdx-editor-top>:not([data-fmdx-mode-toggle]){display:none!important}
+.gxd-first-app .fmdx-editor-top>[data-fmdx-mode-toggle]{grid-column:1/-1;justify-self:start;width:auto!important;padding:0 12px!important;font-size:13px!important;gap:7px!important}
 .gxd-first .gxd-busy{flex:1 1 auto;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;min-height:100%;color:#475467;font-size:13px}
 /* The wide steps (style, prices, wording, first proposal) take the project window's size (GP-23): on the page the
    window manager's modal (min(1720, 96%) x min(1180, 92%), centred), in a project window the whole window. A phone keeps

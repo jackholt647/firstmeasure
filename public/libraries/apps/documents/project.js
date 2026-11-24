@@ -1351,7 +1351,6 @@
       // A phone opens documents on the page; the Data tray covers it, so it starts closed there.
       dataPanelOpen: !isPhone(),
       previewCleanup: null,
-      sentEditor: null,               // "Edit manually" (FMDocSentEditor) while it is open
       // workflow view (contracts §8)
       docWorkflow: null,              // { definition, state } for the open doc (null = none)
       workflowHandle: null,           // FMDocWorkflow mount handle
@@ -1391,14 +1390,13 @@
     }
     function syncBack(){
       if (!backHistory || state.destroyed) return;
-      backHistory.depth(openModals.length + (state.previewCleanup ? 1 : 0) + (state.sentEditor ? 1 : 0) + docBackDepth());
+      backHistory.depth(openModals.length + (state.previewCleanup ? 1 : 0) + docBackDepth());
     }
     /** One back press: true when something went back. */
     function pressBack(){
       const modal = openModals[openModals.length - 1];
       if (modal) { modal.dismiss(); return true; }
       if (state.previewCleanup) { state.previewCleanup(); return true; }
-      if (state.sentEditor) { state.sentEditor.close(); return true; }
       if (state.view !== 'editor') return false;
       if (state.docView === 'editor' && stepsBehindEditor()) { setDocView('workflow'); return true; }
       if (state.docView === 'workflow' && state.workflowHandle?.position?.().index > 0) { state.workflowHandle.back(); return true; }
@@ -2525,7 +2523,7 @@
           // Sending is the step's own Send button; these sit to its left. The
           // presentation's own editor and its emailed link are under More.
           return [
-            { id: 'edit_manually', label: 'Edit manually', icon: 'fa-pen-ruler', quiet: true, title: 'Open the finished document in the editor to change it by hand', run: () => openAsSentEditor() },
+            { id: 'edit_manually', label: 'Edit manually', icon: 'fa-pen-ruler', quiet: true, title: 'Open this document in the document editor to change it by hand', run: () => openFullEditor() },
             canPresent(options) ? { id: 'present', label: 'Present', icon: 'fa-chalkboard-user', title: 'Present this estimate to the customer', run: () => openPresentation() } : null
           ].filter(Boolean);
         },
@@ -5245,7 +5243,9 @@
       const panel = root.querySelector('[data-fmdx-data-panel]');
       if (!panel) return;
       let offset = 0;
-      if (state.docView === 'editor') {
+      // Only a tray laid over the editor (narrow screens) can cover its toolbar;
+      // beside it, an offset is just a gap above Setup / Agent (GP-169).
+      if (state.docView === 'editor' && getComputedStyle(panel).position === 'absolute') {
         try {
           const toolbar = root.querySelector('[data-fmdx-canvas] .fmde-toolbar');
           if (toolbar) offset = Math.round(toolbar.getBoundingClientRect().height);
@@ -5750,52 +5750,15 @@
     }
 
     /**
-     * "Edit manually": the document exactly as it will be sent (FMDocSentEditor,
-     * docs/architecture/document-as-sent-editing.md). Values from the data
-     * write the data and other text is saved as a text override, both through
-     * POST /as-sent (patchDocumentInstance), so each is a document revision.
+     * "Edit manually": the full document editor (the one Doc Studio uses), for
+     * every organization; the Doc Studio flag only hides the global tab.
+     * Back returns to the steps (docBackDepth).
      */
-    async function openAsSentEditor(){
+    async function openFullEditor(){
       if (!state.doc?.id) return;
-      if (!window.FMDocSentEditor?.open) { setDocView('editor'); return; }
-      await flushAllWrites();
-      const traced = async () => objectValue(await api().documents.resolve(orgId(), state.doc.id, { trace: true }));
-      // Both kinds of edit are one server call each, saved as a document revision.
-      const save = async (body) => {
-        const res = objectValue(await api().documents.editAsSent(orgId(), state.doc.id, body));
-        const updated = objectValue(res.document);
-        if (updated.id) {
-          state.doc = { ...state.doc, ...updated };
-          state.baseOverrides = arrayValue(updated.overrides).map((op) => clone(op));
-        }
-        return res;
-      };
-      const editor = window.FMDocSentEditor.open({
-        title: firstText(state.doc.title, 'Document'),
-        themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding) },
-        load: traced,
-        writeInputs: (writes) => save({ writes }),
-        setTextOverride: async (nodeId, blocks, base) => {
-          await flushAutosave();
-          return save({ text: { node_id: nodeId, blocks, base } });
-        },
-        actions: [
-          { id: 'layout', label: 'Edit layout', icon: 'fa-object-group', title: 'Open the template layout editor for this document', run: async (editor) => { await editor.close(); setDocView('editor'); } },
-          { id: 'pdf', label: 'Download PDF', icon: 'fa-download', run: () => downloadPdf(state.doc, null) },
-          { id: 'done', label: 'Done', icon: 'fa-check', primary: true, run: (editor) => editor.close() }
-        ],
-        onClose: (changed) => {
-          if (state.sentEditor === editor) state.sentEditor = null;
-          syncBack();
-          if (!changed) return;
-          state.workflowTouched = true; // the template editor re-resolves on its next open
-          try { state.workflowHandle?.refresh?.({ params: clone(objectValue(state.doc?.params)), outputs: clone(objectValue(state.doc?.outputs)) }); } catch (e) {}
-          try { state.workflowHandle?.refreshPreview?.(); } catch (e) {}
-          renderDocCard();
-        }
-      });
-      state.sentEditor = editor || null;
-      syncBack();
+      // Straight onto the page: the Setup / Agent tray starts closed here.
+      if (state.dataPanelOpen) setDataPanelOpen(false);
+      await setDocView('editor');
     }
 
     // ================================================================= pdf

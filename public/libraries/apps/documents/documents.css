@@ -294,8 +294,9 @@ html[data-fm-doc-phone] .fmdx-order-pane{border-radius:0;padding-bottom:env(safe
    drop the label (each button carries a title). */
 .fmdx-editor-screen{container-type:inline-size;container-name:fmdx-screen}
 @container fmdx-screen (max-width:1240px){
-  .fmdx-editor-top .fmdx-btn.fmdx-btn:not(.primary){font-size:0;gap:0;padding:0;width:36px}
-  .fmdx-editor-top .fmdx-btn.fmdx-btn:not(.primary) i{font-size:13px}
+  /* "Back to steps" keeps its words: it is the way back from "Edit manually" (GP-169). */
+  .fmdx-editor-top .fmdx-btn.fmdx-btn:not(.primary):not([data-fmdx-mode-toggle]){font-size:0;gap:0;padding:0;width:36px}
+  .fmdx-editor-top .fmdx-btn.fmdx-btn:not(.primary):not([data-fmdx-mode-toggle]) i{font-size:13px}
   .fmdx-editor-top .fmdx-mode-toggle button{font-size:0;gap:0}
   .fmdx-editor-top .fmdx-mode-toggle button i{font-size:12px}
   .fmdx-editor-top .fmdx-save-state{font-size:0;gap:0}
@@ -304,6 +305,8 @@ html[data-fm-doc-phone] .fmdx-order-pane{border-radius:0;padding-bottom:env(safe
 @container fmdx-screen (max-width:760px){
   .fmdx-editor-top .fmdx-btn.fmdx-btn.primary{font-size:0;gap:0;padding:0;width:38px}
   .fmdx-editor-top .fmdx-btn.fmdx-btn.primary i{font-size:13px}
+  .fmdx-editor-top .fmdx-btn.fmdx-btn[data-fmdx-mode-toggle]{font-size:0;gap:0;padding:0;width:36px}
+  .fmdx-editor-top .fmdx-btn.fmdx-btn[data-fmdx-mode-toggle] i{font-size:13px}
   .fmdx-editor-top .fmdx-doc-title-input{max-width:150px}
 }
 /* [Workflow | Editor] segmented mode toggle (unified document top bar) */
