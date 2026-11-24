@@ -192,7 +192,7 @@ test("change order, invoice and completion certificate run against a signed agre
   assert.equal(invoice.params.account.paid_cents, 657000);
   const options = invoice.params.account.bill_options;
   assert.deepEqual(options.map((option: any) => [option.label, option.price_cents ?? null]), [
-    ["Final payment", 1400000], ["Change order balance", 57000], ["Remaining balance", 1457000], ["Deposit", 600000], ["Change order deposit", 57000], ["Other charges only", null]
+    ["Final payment", 1400000], ["Change order balance", 57000], ["Remaining balance", 1457000], ["Deposit", 600000], ["Change order deposit", 57000]
   ]);
   const finalPayment = byLabel("Final payment");
   await docs.patch(invoice.id, { bill: finalPayment.id, due_date: "2026-11-15", line_items: [{ id: "permit", name: "Building permit", quantity: 1, unit: "ea", unit_price: 150 }] });
@@ -284,8 +284,12 @@ test("a project with no signed agreement or activity still reads sensibly", asyn
   assert.equal(resolvedChange.scope.params.new_total_cents, 72000);
 
   const invoice = await docs.create("tpl_invoice_default", "invoice");
-  assert.deepEqual(invoice.params.account.bill_options.map((option: any) => option.value), ["custom"]);
-  await docs.patch(invoice.id, { bill: "custom", line_items: [{ id: "r", name: "Emergency roof repair", quantity: 1, unit: "ea", unit_price: 450 }] });
+  assert.deepEqual(invoice.params.account.bill_options, [], "nothing to bill but its own charges (GP-157)");
+  // Billing nothing else, its charges are what it asks for, not the amount it was created with (GP-157).
+  await docs.patch(invoice.id, { line_items: [{ id: "r", name: "Emergency roof repair", quantity: 1, unit: "ea", unit_price: 450 }] });
+  assert.equal((await docs.resolve(invoice.id)).scope.params.amount_due_cents, 45000);
+  // An invoice from before GP-157 that chose "other charges only" still bills only them.
+  await docs.patch(invoice.id, { bill: "custom" });
   assert.equal((await docs.resolve(invoice.id)).scope.params.amount_due_cents, 45000);
 
   const certificate = await docs.create("tpl_roofing_completion_certificate", "completion_certificate");

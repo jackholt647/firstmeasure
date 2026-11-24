@@ -158,10 +158,11 @@ test('the pay sheet editor creates, edits, checks coverage, tries a project, val
     assert.match(await modal.locator('[data-ps-strip]').innerText(), /Everything accounted for/i);
     const steepLine = modal.locator('[data-ps-line]').nth(1);
     assert.equal(await steepLine.locator('[data-ps-line-field="label"]').inputValue(), 'Steep charge');
-    const adjusts = steepLine.locator('.pp-pill', { hasText:'Adjusts the price' });
+    // GP-162: a line that adjusts the price is said to be added on top of the pay for that work.
+    const adjusts = steepLine.locator('.pp-pill', { hasText:'Added on top' });
     assert.equal(await adjusts.count(), 1, 'a line reading part of the squares the work is measured in adjusts the price');
     assert.match(await adjusts.getAttribute('data-fm-tooltip'), /Squares over 8\/12 up to 12\/12 are part of roof squares, which is what tear off old roofing, underlayment and dry-in and install roofing is measured in/);
-    assert.equal(await modal.locator('[data-ps-line]').first().locator('.pp-pill', { hasText:'Adjusts the price' }).count(), 0, 'the line on the whole squares is the pay');
+    assert.equal(await modal.locator('[data-ps-line]').first().locator('.pp-pill', { hasText:'Added on top' }).count(), 0, 'the line on the whole squares is the pay');
     assert.equal(await steepLine.locator('[data-ps-line-field="per"] option:checked').innerText(), 'Squares over 8/12 up to 12/12');
     const visibleText = await modal.locator('[data-ps-editor]').innerText();
     for (const id of ['roof.squares', 'roofing.tear_off', 'disposal.debris', 'steep_squares', 'piece_rate', '{']) assert.equal(visibleText.includes(id), false, `no ids or code on screen (${id})`);

@@ -4,7 +4,7 @@
 (function(){
   if (!window.Portal) return;
 
-  const shellReady=window.FirstMateWindowShell?Promise.resolve():import(new URL('../../window-manager/window-shell.js?v=20261123-gp152-details-toggle',document.currentScript?.src||location.origin+'/libraries/apps/contacts/modal.js').href);
+  const shellReady=window.FirstMateWindowShell?Promise.resolve():import(new URL('../../window-manager/window-shell.js?v=20261123-gp153-minimized-bars',document.currentScript?.src||location.origin+'/libraries/apps/contacts/modal.js').href);
   const cfg = window.Portal.cfg || {};
   const state = {
     open: false,
@@ -430,8 +430,7 @@
       .fm-contact-overlay.window-managed .fm-contact-win[data-window="full"],.fm-contact-overlay.window-managed .fm-contact-win[data-window="fullscreen"]{border-radius:0}
       .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"] .fm-contact-content{display:none}
       .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"]{padding:0}
-      .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"] .fm-contact-window-header{height:30px;min-height:30px;padding:0 6px}
-      .fm-contact-overlay.window-managed .fm-contact-win[data-window="minimized"] .fm-window-controls button:not([data-window-action="minimize"]):not([data-window-action="close"]){display:none}
+      /* The minimized bar itself is the shared one (window-shell.js, window-manager.js; GP-153): no sizes of its own here. */
       @media(max-width:760px){
         .fm-contact-win{width:100vw;height:100vh;border-radius:0}
         .fm-contact-content{flex-direction:column}
@@ -521,6 +520,8 @@
       dockWidth:760, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
       onClose:() => close(),
+      // Minimized, the bar shows the name and its tooltip adds the address (GP-153), as a project's does.
+      minimizedTooltip:() => ({name:$('#fmContactWindowTitle')?.textContent, detail:cleanText(state.contact?.address) || cleanText($('#fmContactAddress')?.value)}),
       // A reload keeps the open contact's window where it was (GP-148).
       restoreKey:() => state.open && contactRouteId() ? 'contact:' + contactRouteId() : '',
       onChange:({mode}) => {

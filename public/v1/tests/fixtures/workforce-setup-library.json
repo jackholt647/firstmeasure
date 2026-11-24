@@ -110,7 +110,13 @@
                   "roofing_exteriors"
                 ],
                 "method": "per_measurement",
-                "measurement": "roof.squares"
+                "measurement": "roof.squares",
+                "items": [
+                  { "type": "pitch_range", "above": 0, "up_to": 2 },
+                  { "type": "pitch_range", "above": 2, "up_to": 8 },
+                  { "type": "pitch_range", "above": 8, "up_to": 12 },
+                  { "type": "pitch_range", "above": 12, "up_to": null }
+                ]
               },
               {
                 "method": "hourly"

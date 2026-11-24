@@ -106,6 +106,7 @@ import { startOfferedApp } from './app-experience/activation.js';
 import { requestPrincipal, systemPrincipal, type Principal } from "./security/principal.js";
 import { serviceInject } from "./security/service.js";
 import { safeFetch, SafeFetchError } from "./security/safe-fetch.js";
+import { rasterizeSvgLogo } from "./logo_raster.js";
 import { recordSecurityEvent } from "./security/impersonation.js";
 import { identityIsStaffMember } from "./security/staff.js";
 import { isAllowedOrigin } from "./security/browser.js";
@@ -11973,8 +11974,13 @@ async function portalFetchImage(body: JsonObject) {
   }
   if (fetched.status < 200 || fetched.status >= 300) return { success: false, error: "Fetch failed." };
   const contentType = cleanText(fetched.contentType.split(";")[0]) || "image/png";
-  // An SVG can carry script; the browser draws this image, so it is refused.
-  if (!contentType.startsWith("image/") || contentType.includes("svg")) return { success: false, error: "Not an image URL." };
+  if (!contentType.startsWith("image/")) return { success: false, error: "Not an image URL." };
+  // An SVG can carry script, so it is never passed on: it is drawn here into a PNG. Many websites' logos are SVGs,
+  // and the browser needs the pixels to read the brand colors and a PNG to upload as the logo (GP-170).
+  if (contentType.includes("svg")) {
+    const png = await rasterizeSvgLogo(fetched.body);
+    return png ? { success: true, data_url: `data:image/png;base64,${png.toString("base64")}` } : { success: false, error: "Not an image URL." };
+  }
   return { success: true, data_url: `data:${contentType};base64,${fetched.body.toString("base64")}` };
 }
 

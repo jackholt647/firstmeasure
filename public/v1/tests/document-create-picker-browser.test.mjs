@@ -28,7 +28,7 @@ const TEMPLATES = [
   template('tpl_old', 'contract', 'Retired contract', { status: 'archived' })
 ];
 
-async function open(browser, { pinned = null, viewport = { width: 1280, height: 860 }, windows = false, templates = TEMPLATES, guides = false } = {}) {
+async function open(browser, { pinned = null, viewport = { width: 1280, height: 860 }, windows = false, templates = TEMPLATES, guides = false, prefill = null } = {}) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -67,7 +67,7 @@ async function open(browser, { pinned = null, viewport = { width: 1280, height: 
       const paramFieldHtml = () => '';
       const capabilityEnabled = () => false;
       // The guided experiences runtime, with the documents setup this person may run (or none).
-      const guidesRuntime = () => window.__guides ? { experience: (id) => (id === 'documents.setup' ? { id } : null), play: async (id, opts) => { window.calls.push(['play', id, opts]); return { status: 'completed' }; } } : null;
+      const guidesRuntime = () => window.__guides ? { experience: (id) => (id === 'documents.setup' ? { id } : null), play: async (id, opts) => { window.calls.push(['play', id, opts]); await window.__setupEnds; return { status: 'completed' }; } } : null;
     `;
     window.__templates = TEMPLATES; window.__pinned = pinned; window.__guides = guides;
     const kinds = [['proposal','Proposal'],['contract','Contract'],['change_order','Change Order'],['invoice','Invoice'],['completion_certificate','Completion Certificate'],['generic','Plain document']];
@@ -77,6 +77,11 @@ async function open(browser, { pinned = null, viewport = { width: 1280, height: 
     // eslint-disable-next-line no-new-func
     window.openCreate = new Function(`${helpers}\n${typeCode}\n${modalCode}\n${pickerDataCode}\n${create}\nreturn openCreateModal;`)();
   }, { typeCode, modalCode, createCode, pickerDataCode, TEMPLATES: templates, pinned, guides });
+  // A host asking for a type (Ops' Create proposal) with its return; the setup ends when the test says so.
+  if (prefill) {
+    await page.evaluate((prefill) => { window.__setupEnds = new Promise((resolve) => { window.endSetup = resolve; }); window.openCreate(prefill, { onFinish: (doc) => window.calls.push(['finish', doc]) }); }, prefill);
+    return { page, errors };
+  }
   await page.evaluate(() => window.openCreate());
   await page.waitForSelector('[data-tpl-search]');
   return { page, errors };
@@ -497,5 +502,39 @@ test('the library\'s proposals are one Proposal until the organization has its o
     await own.page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
     assert.equal(await own.page.evaluate(() => window.calls.some((call) => call[0] === 'play')), false);
     assert.deepEqual(own.errors, []);
+  } finally { await browser.close(); }
+});
+
+test('a proposal asked for by type (Ops\' Create proposal) opens the proposal setup too, and returns once it ends (GP-159)', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await open(browser, { templates: LIBRARY, guides: true, prefill: { document_type: 'proposal' } });
+    await page.waitForFunction(() => window.calls.some((call) => call[0] === 'play'));
+    const play = await page.evaluate(() => window.calls.find((call) => call[0] === 'play'));
+    assert.equal(play[1], 'documents.setup');
+    assert.equal(play[2].start, 'proposal_kinds');
+    assert.equal(play[2].selections.document_kind, 'proposal');
+    assert.equal(await page.evaluate(() => window.calls.some((call) => call[0] === 'create')), false, 'the library\'s retail proposal is not started');
+    await page.waitForSelector('.fmdx-modal-back', { state: 'detached' });
+    assert.equal(await page.evaluate(() => window.calls.some((call) => call[0] === 'finish')), false, 'the host waits while the setup plays');
+    await page.evaluate(() => window.endSetup());
+    await page.waitForFunction(() => window.calls.some((call) => call[0] === 'finish'));
+    assert.equal(await page.evaluate(() => window.calls.filter((call) => call[0] === 'finish').length), 1);
+    assert.deepEqual(errors, []);
+    await page.close();
+    // Without the setup to play, the type's default proposal starts as before.
+    const plain = await open(browser, { templates: LIBRARY, prefill: { document_type: 'proposal' } });
+    await plain.page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
+    assert.deepEqual(await plain.page.evaluate(() => window.calls.find((call) => call[0] === 'create')), ['create', 'proposal', 'tpl_instant_roofing_detailed']);
+    await plain.page.close();
+    // With a proposal of their own, it starts theirs.
+    const own = await open(browser, { templates: [...LIBRARY, template('tpl_setup_proposal', 'proposal', 'Proposal · Itemized', { metadata: { default: true, document_setup: { document_kind: 'proposal' } } })], guides: true, prefill: { document_type: 'proposal' } });
+    await own.page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
+    assert.equal(await own.page.evaluate(() => window.calls.some((call) => call[0] === 'play')), false);
+    // Another type is untouched by the gate.
+    const invoice = await open(browser, { templates: LIBRARY, guides: true, prefill: { document_type: 'invoice' } });
+    await invoice.page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
+    assert.deepEqual(await invoice.page.evaluate(() => window.calls.find((call) => call[0] === 'create')), ['create', 'invoice', 'tpl_invoice_default']);
+    assert.equal(await invoice.page.evaluate(() => window.calls.some((call) => call[0] === 'play')), false);
   } finally { await browser.close(); }
 });

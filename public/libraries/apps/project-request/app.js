@@ -3,7 +3,7 @@
  */
 (function(){
   const contactsModuleUrl = new URL('../contacts/modal.js?v=20261101-prod-sync', document.currentScript.src);
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261123-gp148-reload-placement', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261124-gp170-theme', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261119-gp19-order-pane', document.currentScript.src);
   const shellUrl = new URL('../../window-manager/window-shell.js?v=20261026-phone-tab-labels', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
@@ -4849,8 +4849,10 @@ window.PlatformCommerce.onReady(async function(){
     if(portal?.appFlags?.has?.('apps','comms') && phone){
       const status=await phone.refreshStatus();
       if(status?.settings?.enabled){
-        const opened=await phone.open({contact_id:contact.id,customer_name:contact.name,customer_number:contact.phone,project_id:projectOpenId()});
-        if(opened!==false){
+        // GP-155: the call opens in this window's Call tray (comms/project-call-tray.js).
+        const callTray=window.Portal?.ProjectCallTray,input={contact_id:contact.id,customer_name:contact.name,customer_number:contact.phone,project_id:projectOpenId()};
+        const opened=await (callTray?callTray.open(input):phone.open(input));
+        if(opened!==false && !callTray){
           if(['modal','fullscreen'].includes(projectModalWindow?.state?.mode))projectModalWindow.setMode('full');
           portal.PhoneTray?.showDocked?.();
         }
@@ -5064,16 +5066,17 @@ window.PlatformCommerce.onReady(async function(){
   // Operations (project.materials, tab `materials`) shows the project's measurements itself, so once Operations is set
   // up it is a flow while that tab shows (FM-611): the tray steps aside, and opens again on leaving the tab if
   // Operations closed it. Each visit is one run of the flow.
-  // Set up: Operations is on (an app only offered shows its welcome) and the organization finished its setup
-  // (`operations.setup`, organization-wide), or the setup is not offered to this person, who then has nothing to set up
-  // first. A skipped or unfinished setup is not set up.
+  // Set up: Operations is on (an app only offered shows its welcome) and the organization is past its setup
+  // (`operations.setup`, organization-wide): finished, or skipped (GP-163: a skipped setup leaves the tab in use, with
+  // the measurements it shows), or the setup is not offered to this person, who then has nothing to set up first. A setup
+  // still to come or unfinished plays on the tab, so the tray stays until it ends (fm:guides:ended below).
   async function operationsSetUp(){
     const guides=window.FirstMateGuides;
     if(typeof guides?.preload!=='function' || window.PlatformAPI?.capabilities?.can?.('platform.materials')!==true)return false;
     const snapshot=await Promise.resolve(guides.preload(projectOpenId() || '')).catch(()=>null);
     if(!snapshot?.experiences?.get)return false;
     const setup=snapshot.experiences.get('operations.setup');
-    return !setup || setup.progress?.status==='completed';
+    return !setup || ['completed','dismissed'].includes(setup.progress?.status);
   }
   let detailsTrayOperationsVisit=0;
   function syncDetailsTrayOperations(){
@@ -5084,7 +5087,8 @@ window.PlatformCommerce.onReady(async function(){
     if(!closes())return;
     operationsSetUp().then(ready=>{if(ready && closes())holdDetailsTray('operations');});
   }
-  // Finishing Operations setup the first time, on the Operations tab, closes the tray as an Operations visit would.
+  // Finishing (or skipping) Operations setup the first time, on the Operations tab, closes the tray as an Operations
+  // visit would.
   window.addEventListener('fm:guides:ended',event=>{if(event?.detail?.id==='operations.setup' && activePreviewTab==='materials')syncDetailsTrayOperations();});
 
   // Measurements under the address: the Operations Measurements view in its measurements-only form (the 3D

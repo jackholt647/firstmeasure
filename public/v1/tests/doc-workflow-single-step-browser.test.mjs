@@ -80,3 +80,37 @@ test('an answer that hides a question redraws the step in place; footer:false le
   assert.equal(await page.evaluate(()=>handle.validate()),true);
  }finally{await browser.close();}
 });
+
+// GP-157: the invoice is one untitled, dense block of three columns; hints are info tooltips beside their labels, not
+// text under them, and a choice that may be left unanswered (clearable cards) is unpicked by picking it again.
+const DENSE={schema_version:1,name:'Invoice',steps:[{id:'invoice',title:'Invoice',sections:[{id:'invoice',presentation:{columns:3,dense:true,hints:'tooltip'},items:[
+ {kind:'select',writes:'params.bill',label:'Bill for',description:'A payment this invoice bills.',options:[{value:'deposit',label:'Deposit'},{value:'final',label:'Final payment'}],presentation:{style:'cards',clearable:true}},
+ {kind:'date',writes:'params.issue_date',label:'Issued'},
+ {kind:'date',writes:'params.due_date',label:'Due',description:'Billed payments become due on this date.'},
+ {kind:'boolean',writes:'params.render_paid_in_full',label:'Paid in full',description:'The invoice reads paid in full.'}]}]}]};
+
+test('a dense section in three columns with its hints as tooltips, and clearable cards (GP-157)',async()=>{
+ const browser=await launch();
+ try{
+  const page=await browser.newPage();await mount(page,{workflow:DENSE,options:{footer:false}});
+  assert.equal(await page.locator('.fmdw-section>h3').count(),0,'no section title');
+  assert.equal(await page.locator('.fmdw-field-desc, .fmdw-toggle-copy small').count(),0,'no hint text under a label');
+  assert.deepEqual(await page.locator('.fmdw-item-tip').evaluateAll((tips)=>tips.map((tip)=>tip.dataset.fmdwTip)),
+   ['A payment this invoice bills.','Billed payments become due on this date.','The invoice reads paid in full.']);
+  await page.waitForTimeout(600);// the step's entrance
+  const issued=await box(page,'.fmdw-item:has([type=date])');const paid=await box(page,'.fmdw-item:has(.fmdw-toggle-row)');
+  assert.ok(Math.abs(issued.y-paid.y)<2,'the dates and the switch share a row');
+  assert.ok(issued.width<(await box(page,'.fmdw-section-items')).width/2.5,'three to a row');
+  // The tip opens without working the field it labels.
+  await page.locator('.fmdw-item-tip').nth(2).evaluate((tip)=>tip.click());
+  assert.equal(await page.evaluate(()=>document.activeElement?.classList.contains('fmdw-item-tip')),true,'a tap shows it');
+  assert.equal(await page.evaluate(()=>writes.some(([path])=>path==='params.render_paid_in_full')),false);
+
+  await page.click('[data-fmdw-choice=final]');
+  assert.deepEqual(await page.evaluate(()=>writes.at(-1)),['params.bill','final']);
+  await page.click('[data-fmdw-choice=final]');
+  assert.deepEqual(await page.evaluate(()=>writes.at(-1)),['params.bill',null],'picked again, it is unpicked');
+  assert.equal(await page.locator('.fmdw-choice-card.active').count(),0);
+  assert.equal(await page.evaluate(()=>handle.validate()),true,'nothing to bill but the charges is an answer');
+ }finally{await browser.close();}
+});

@@ -86,6 +86,8 @@ test('unanswered: the shared step is the first page, and Continue needs an answe
     await page.locator('[data-gxw-next]').click();
     await page.locator('[data-gxw-page="count"]').waitFor();
     assert.equal(await page.locator('[data-gxw-count]').count(),2);
+    // GP-160: how many is the title and the counts, with no lead paragraph under the title.
+    assert.equal(await page.locator('[data-gxw-page="count"] > p:not([data-gxw-error])').count(),0,'no lead under how many');
     assert.deepEqual(await page.evaluate(()=>saved),[{action:'company-profile.save',input:{workforce:'crews_and_subs'}}]);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
@@ -166,18 +168,23 @@ test('a crew: Other, specialties, a picked and a new member, who is in charge; i
     await card.locator('[data-gxw-service-add="gutters"]').click();
     assert.equal(await card.locator('[data-gxw-service="gutters"]').getAttribute('aria-pressed'),'true');
     // Specialties: the library's to pick from, and one typed in.
-    // Each service is its own panel, a few suggestions in view at once, the rest behind "more".
+    // GP-161: a short row per service; its suggestions open under the row on "+ Specialties", one row at a time, and
+    // what was picked stays on the row once it is closed.
     const roofs=card.locator('[data-gxw-kinds="roof_replacement"]');
-    assert.deepEqual(await roofs.locator('[data-gxw-tag]').allTextContents(),['Asphalt shingles','Metal roofs','Flat roofs','Tile roofs']);
-    assert.equal(await roofs.locator('[data-gxw-kinds-open]').textContent(),'2 more');
+    assert.equal(await roofs.locator('[data-gxw-tag]').count(),0,'nothing picked: no suggestions in the way');
+    await roofs.locator('[data-gxw-kinds-open]').click();
+    assert.deepEqual(await roofs.locator('.gxw-suggest [data-gxw-tag]').allTextContents(),['Asphalt shingles','Metal roofs','Flat roofs','Tile roofs','Cedar shakes','Slate']);
     await roofs.locator('[data-gxw-tag="Metal roofs"]').click();
     await roofs.locator('[data-gxw-tag-new]').fill('Steep slope');
     await roofs.locator('[data-gxw-tag-new]').press('Enter');
     assert.equal(await roofs.locator('[data-gxw-tag="Steep slope"]').getAttribute('aria-pressed'),'true');
-    assert.deepEqual((await roofs.locator('[data-gxw-tag]').allTextContents()).slice(0,2),['Metal roofs','Steep slope'],'what was picked comes first');
-    await roofs.locator('[data-gxw-kinds-open]').click();
-    assert.ok((await roofs.locator('[data-gxw-tag]').allTextContents()).includes('Slate'),'more shows the rest');
-    assert.equal(await card.locator('[data-gxw-kinds="gutters"] [data-gxw-tag="Seamless"]').count(),1,'gutters has its own kinds, in view at once');
+    assert.deepEqual(await roofs.locator('.gxw-do-tags [data-gxw-tag]').allTextContents(),['Metal roofs','Steep slope'],'what was picked is on the row');
+    assert.ok(!(await roofs.locator('.gxw-suggest [data-gxw-tag]').allTextContents()).includes('Metal roofs'),'and no longer offered');
+    await card.locator('[data-gxw-kinds="gutters"] [data-gxw-kinds-open]').click();
+    assert.equal(await card.locator('.gxw-suggest').count(),1,'one row open at a time');
+    assert.equal(await card.locator('[data-gxw-kinds="gutters"] [data-gxw-tag="Seamless"]').count(),1,'gutters has its own kinds');
+    await card.locator('[data-gxw-kinds="gutters"] [data-gxw-kinds-open]').click();
+    assert.deepEqual(await roofs.locator('[data-gxw-tag]').allTextContents(),['Metal roofs','Steep slope'],'closed, only what was picked shows');
     // Who's on it: our own dropdown, then someone new from its bottom.
     assert.equal(await card.locator('select').count(),0,'no browser dropdown');
     await card.locator('[data-gxw-pick]').click();
@@ -300,6 +307,117 @@ test('on a phone a short page fills the tray: words at the top, buttons at the b
     const box=await page.evaluate(()=>{const step=document.querySelector('.gxs-step').getBoundingClientRect(),lead=document.querySelector('[data-gxw-page="count"]').getBoundingClientRect(),actions=document.querySelector('.gxw-actions').getBoundingClientRect();return {top:lead.top-step.top,gap:step.bottom-actions.bottom};});
     assert.ok(box.top<20,`the page starts at the top (${box.top}px down)`);
     assert.ok(box.gap<=32,`the buttons sit at the bottom (${box.gap}px above it)`);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+// GP-161: Back, Continue and Save are on a bar pinned to the bottom of the sheet on every page: a long page scrolls
+// under it, a short one (pay on the large sheet) has it at the bottom, not under the cards.
+test('Back and Continue stay pinned to the bottom of the sheet, whatever the page\'s height',async()=>{
+  const browser=await launch();
+  try{
+    const html='<style>body{margin:0}.gxs-step{position:absolute;left:0;top:0;width:1100px;height:520px;overflow:auto;padding:8px 28px 24px;display:flex;flex-direction:column;box-sizing:border-box}.gxs-body{flex:0 0 auto}</style><div class="gxs" data-kind="modal"><div class="gxs-step"><div class="gxs-titlebar"><h2>Step</h2></div><div class="gxs-body" id="step"></div></div></div>';
+    const {page,errors}=await open(browser,'crews',{options,html,status:{people,can:{add_people:true,invite:true}}});
+    await page.locator('[data-gxw-page="count"]').waitFor();
+    await page.locator('[data-gxw-count="resource_group"] [data-gxw-plus]').click();
+    await page.locator('[data-gxw-next]').click();
+    await page.locator('[data-gxw-page="work"]').waitFor();
+    // Make the page longer than the sheet: a row's suggestions open and two people on the crew.
+    const card=page.locator('.gxw-card').first();
+    await card.locator('[data-gxw-kinds="roof_replacement"] [data-gxw-kinds-open]').click();
+    await card.locator('[data-gxw-pick]').click();
+    await card.locator('[data-gxw-member="ana"]').click();
+    await card.locator('[data-gxw-pick]').click();
+    const where=()=>page.evaluate(()=>{const step=document.querySelector('.gxs-step'),box=step.getBoundingClientRect(),bar=document.querySelector('[data-gxw-page] > .gxw-actions').getBoundingClientRect(),back=document.querySelector('[data-gxw-back]').getBoundingClientRect();return {long:step.scrollHeight>step.clientHeight+20,gap:Math.round(box.bottom-bar.bottom),backGap:Math.round(box.bottom-back.bottom),top:document.elementFromPoint(back.left+back.width/2,back.top+back.height/2)?.closest('[data-gxw-back]')!==null};});
+    const long=await where();
+    assert.equal(long.long,true,'the page is longer than the sheet');
+    assert.equal(long.gap,0,'the bar sits on the bottom edge');
+    assert.ok(long.backGap>=16&&long.backGap<=32,`Back is in reach, not under the content (${long.backGap}px up)`);
+    assert.equal(long.top,true,'nothing covers Back');
+    await page.evaluate(()=>document.querySelector('.gxs-step').scrollTo({top:120}));
+    assert.deepEqual(await where(),long,'scrolling moves the cards, not the buttons');
+    await page.evaluate(()=>handle.escape());
+    await page.locator('[data-gxw-next]').click();
+    await page.locator('[data-gxw-page="pay"]').waitFor();
+    const short=await where();
+    assert.equal(short.long,false);
+    assert.equal(short.gap,0,'a short page has its buttons at the bottom of the sheet too');
+    assert.equal(short.top,true);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+// GP-162: a piece rate is items. Squares start as one rate for each pitch range (library data); the ranges replace each
+// other and are all given a rate or none; a bonus over a pitch and a rate per foot of a roof line are added on top, and
+// the bonus says what a square at that pitch earns.
+const pitchBands=[[0,2],[2,4],[4,6],[6,8],[8,12],[12,null]].map(([above,up_to])=>({id:`band_${above}`,label:'',above,up_to}));
+const roofMeasurements=[{id:'roof.squares',label:'Roof squares',unit:'roofing_square'},{id:'roof.area',label:'Roof area',unit:'ft2'},{id:'roof.squares_hand_carried',label:'Hand-carried squares',unit:'roofing_square',part_of:'roof.squares'},{id:'roof.ridge_length',label:'Ridges',unit:'ft'},{id:'roof.valley_length',label:'Valleys',unit:'ft'}];
+test('a piece rate: one rate for each pitch range by default, split where you like, with a bonus and extras on top',async()=>{
+  const browser=await launch();
+  try{
+    const {page,errors}=await open(browser,'crews',{options,status:{people,can:{add_people:false,invite:false},measurements:roofMeasurements,pitch_bands:pitchBands}});
+    await page.locator('[data-gxw-page="count"]').waitFor();
+    await page.locator('[data-gxw-next]').click();
+    await page.locator('[data-gxw-page="work"] [data-gxw-next]').click();
+    const card=page.locator('[data-gxw-page="pay"] .gxw-card').first();
+    await card.waitFor();
+    await card.locator('[data-gxw-method="per_measurement"]').click();
+    assert.equal(await card.locator('[data-gxw-squares="pitch"]').getAttribute('aria-checked'),'true','by pitch range is the default');
+    const names=async()=>(await card.locator('[data-gxw-range] .gxw-pr-name').allInnerTexts()).map(text=>text.split('\n')[0]);
+    assert.deepEqual(await names(),['Up to 2/12','Over 2/12 up to 8/12','Over 8/12 up to 12/12','Over 12/12']);
+    assert.match(await card.locator('[data-gxw-squares-part] .gxw-pp-hint').innerText(),/replace each other/);
+    // Some ranges rated and not the others: the squares in those would be paid nothing, so it says so.
+    await card.locator('[data-gxw-range] input').nth(1).fill('65');
+    await page.locator('[data-gxw-apply]').click();
+    assert.match(await page.locator('[data-gxw-error]').innerText(),/every pitch range/);
+    assert.equal(await card.locator('[data-gxw-range][data-missing]').count(),3);
+    // Split at 6/12 too: both halves start at the rate of the range they were; joined again, they are that range.
+    const rates=()=>card.locator('[data-gxw-range] input').evaluateAll(inputs=>inputs.map(input=>input.value));
+    await card.locator('[data-gxw-break="6"]').click();
+    assert.deepEqual(await names(),['Up to 2/12','Over 2/12 up to 6/12','Over 6/12 up to 8/12','Over 8/12 up to 12/12','Over 12/12']);
+    assert.deepEqual(await rates(),['','65','65','','']);
+    await card.locator('[data-gxw-break="6"]').click();
+    assert.deepEqual(await rates(),['','65','','']);
+    for (const [at,rate] of [[0,'90'],[2,'80'],[3,'100']]) await card.locator('[data-gxw-range] input').nth(at).fill(rate);
+    // On top: a bonus over 8/12, said as what a 9/12 square earns, and ridges per foot. Roof squares are not offered again.
+    const add=card.locator('[data-gxw-add]');
+    assert.equal(await add.locator('option[value="roof.squares"]').count(),0);
+    assert.equal(await add.locator('option[value="roof.area"]').count(),0);
+    await add.selectOption('bonus');
+    const bonus=card.locator('[data-gxw-extra]').first();
+    await bonus.locator('input').fill('2');
+    assert.equal(await bonus.locator('[data-gxw-example]').innerText(),'A 9/12 square: $80 + $2 = $82');
+    await card.locator('[data-gxw-add]').selectOption('roof.ridge_length');
+    await card.locator('[data-gxw-extra]').nth(1).locator('input').fill('1.5');
+    assert.equal(await card.locator('[data-gxw-add] option[value="roof.ridge_length"]').count(),0,'an extra is paid once');
+    await page.locator('[data-gxw-apply]').click();
+    await page.waitForFunction(()=>saved.some(entry=>entry.action==='operations.workforce.setup.apply'));
+    const apply=await page.evaluate(()=>saved.find(entry=>entry.action==='operations.workforce.setup.apply').input);
+    assert.deepEqual(apply.labor.assignees[0].pay,{method:'per_measurement',items:[
+      {type:'pitch_range',above:0,up_to:2,rate:90},{type:'pitch_range',above:2,up_to:8,rate:65},{type:'pitch_range',above:8,up_to:12,rate:80},{type:'pitch_range',above:12,up_to:null,rate:100},
+      {type:'pitch_bonus',above:8,up_to:null,rate:2},{type:'measurement',measurement:'roof.ridge_length',rate:1.5}]});
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('one rate for every square carries over, and a saved piece rate comes back item by item',async()=>{
+  const browser=await launch();
+  try{
+    const saved={method:'per_measurement',rate:0,items:[{type:'measurement',measurement:'roof.squares',rate:70},{type:'pitch_bonus',above:12,up_to:null,rate:5}]};
+    const {page,errors}=await open(browser,'crews',{options,status:{people,can:{add_people:false,invite:false},measurements:roofMeasurements,pitch_bands:pitchBands,assignees:[{ref:{type:'resource_group',id:'g1'},kind:'resource_group',name:'North crew',type_ids:['crew'],member_user_ids:[],service_ids:['roof_replacement'],pay:{sheet_id:'s1',name:'North',lines:2,simple:null,items:saved.items}}]}});
+    await page.locator('[data-gxw-page="count"]').waitFor();
+    await page.locator('[data-gxw-next]').click();
+    await page.locator('[data-gxw-page="work"] [data-gxw-next]').click();
+    const card=page.locator('[data-gxw-page="pay"] .gxw-card').first();
+    assert.equal(await card.locator('[data-gxw-squares="one"]').getAttribute('aria-checked'),'true');
+    assert.equal(await card.locator('[data-gxw-range] input').inputValue(),'70');
+    assert.equal(await card.locator('[data-gxw-example]').innerText(),'A 13/12 square: $70 + $5 = $75');
+    // To ranges and back: one rate fills every range, and the same rate on every range is one rate again.
+    await card.locator('[data-gxw-squares="pitch"]').click();
+    assert.deepEqual(await card.locator('[data-gxw-range] input').evaluateAll(inputs=>inputs.map(input=>input.value)),['70','70','70','70']);
+    await card.locator('[data-gxw-squares="one"]').click();
+    assert.equal(await card.locator('[data-gxw-range] input').inputValue(),'70');
+    assert.equal(await card.locator('[data-gxw-extra]').count(),1,'the bonus stays');
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

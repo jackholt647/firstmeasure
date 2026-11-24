@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { badRequest } from "../platform/errors.js";
 import { listDocuments, upsertDocument, type JsonObject } from "../platform/storage.js";
-import { listMeasurementDefinitions, listMeasurementSchemas, measurementAmounts, measurementBase, measurementWhole } from "../platform/publication/measurement-schemas.js";
+import { listMeasurementDefinitions, listMeasurementPartitions, listMeasurementSchemas, measurementAmounts, measurementBase, measurementWhole } from "../platform/publication/measurement-schemas.js";
 import { workItem, workItemMeasure, workItemsForSchemas } from "../platform/publication/work-items.js";
 import { assigneeSchema, requireActor, requireAssignee, type Actor } from "./assignees.js";
 
@@ -28,8 +28,9 @@ const inputSchema = z.object({
   name,
   label: z.string().trim().max(200).optional(),
   source: z.discriminatedUnion("kind", [
-    // One dictionary measurement. per_structure asks for one value per structure where the project has them.
-    z.object({ kind: z.literal("measurement"), definition: z.string().trim().min(1).max(120), per_structure: z.boolean().optional() }).strict(),
+    // One dictionary measurement. per_structure asks for one value per structure where the project has them. `also`
+    // adds more parts of the same partition to it, read as one: squares over 2/12 up to 8/12 are three pitch bands.
+    z.object({ kind: z.literal("measurement"), definition: z.string().trim().min(1).max(120), also: z.array(z.string().trim().min(1).max(120)).min(1).max(20).optional(), per_structure: z.boolean().optional() }).strict(),
     // The quantity of material on the project's lists, for one price book item or for every item of a type.
     z.object({ kind: z.literal("material"), item_id: id.optional(), item_type: z.string().trim().min(1).max(200).optional() }).strict(),
     // A numeric project field that production fills in, such as pack-out distance.
@@ -123,6 +124,19 @@ export const paySheetInputSchema = z.object({
     // Labor terms mean different things in different trades, so a measurement is only read through a declared kind of work.
     else if (!sheet.schema_ids.length) issue(`Input ${input.name} reads a measurement, so the sheet must name the kind of work it prices.`, at);
     else if (!allowed.has(input.source.definition)) issue(`${input.source.definition} is not part of ${sheet.schema_ids.join(" or ")}.`, at);
+    // Parts read together are parts of one partition, so they never count the same thing twice.
+    const first = input.source.definition, also = input.source.also || [];
+    if (!also.length) return;
+    const partition = measurementPartOf(first);
+    const seen = new Set([first]);
+    also.forEach((definition, position) => {
+      const where = ["inputs", index, "source", "also", position];
+      if (!known.has(definition)) issue(`${definition} is not in the measurement dictionary.`, where);
+      else if (sheet.schema_ids.length && !allowed.has(definition)) issue(`${definition} is not part of ${sheet.schema_ids.join(" or ")}.`, where);
+      else if (!partition || measurementPartOf(definition) !== partition) issue(`Input ${input.name} adds ${definition} to ${first}; only parts of one partition are read together.`, where);
+      else if (seen.has(definition)) issue(`Input ${input.name} reads ${definition} twice.`, where);
+      seen.add(definition);
+    });
   });
   sheet.entries.forEach((entry, index) => {
     for (const [field, reference] of [["input", entry.input], ["when", entry.when]] as const) if (reference && !inputs.has(reference)) issue(`Entry ${entry.label} reads ${reference}, which is not a declared input.`, ["entries", index, field]);
@@ -160,14 +174,14 @@ export type PaySheet = Omit<z.infer<typeof paySheetInputSchema>, "expected_revis
  * that add up to the whole, in which case those parts are the pay. Anything else that covers an item is its pay.
  */
 export function paySheetCoverRoles(sheet: Pick<PaySheet, "schema_ids" | "inputs" | "entries">) {
-  const reads = (entry: PaySheet["entries"][number]) => { const source = sheet.inputs.find((input) => input.name === entry.input)?.source; return source?.kind === "measurement" ? source.definition : ""; };
+  const reads = (entry: PaySheet["entries"][number]) => { const source = sheet.inputs.find((input) => input.name === entry.input)?.source; return source?.kind === "measurement" ? measurementsRead(source) : []; };
   const roles = new Map<PaySheet["entries"][number], Map<string, "counts" | "adjusts">>();
   for (const item of new Set(sheet.entries.flatMap((entry) => entry.covers || []))) {
     const measure = workItemMeasure(sheet.schema_ids, item), covering = sheet.entries.filter((entry) => (entry.covers || []).includes(item));
-    const whole = measure ? measurementWhole(measure, covering.filter((entry) => !entry.role).map(reads).filter(Boolean)) : [];
+    const whole = measure ? measurementWhole(measure, covering.filter((entry) => !entry.role).flatMap(reads)) : [];
     for (const entry of covering) {
-      const definition = reads(entry), partOfMeasure = !!measure && !!definition && measurementBase(definition) === measure;
-      const role = entry.role || (partOfMeasure && !whole.includes(definition) ? "adjusts" : "counts");
+      const definitions = reads(entry), partOfMeasure = !!measure && definitions.length > 0 && definitions.every((definition) => measurementBase(definition) === measure);
+      const role = entry.role || (partOfMeasure && !definitions.every((definition) => whole.includes(definition)) ? "adjusts" : "counts");
       if (!roles.has(entry)) roles.set(entry, new Map());
       roles.get(entry)!.set(item, role);
     }
@@ -222,6 +236,30 @@ export function estimateWorkHours(sheet: Pick<PaySheet, "work">, context: Pick<P
   const hours = waiting.length || !basis.length ? null : Math.round(basis.reduce((sum, row) => sum + row.quantity * row.hours_per_unit, 0) * 4) / 4;
   return { hours, basis, waiting };
 }
+/** The dictionary measurements an input reads: its definition, and the parts of the same partition added to it. */
+export function measurementsRead(source: { definition: string; also?: string[] }) { return [source.definition, ...(source.also || [])]; }
+/** The partition a measurement is a part of, or "" for a whole measurement. */
+function measurementPartOf(definitionId: string) { return listMeasurementDefinitions().find((definition) => definition.id === definitionId)?.slice?.partition || ""; }
+/**
+ * One or more measurements read as one amount, as measurementAmounts reads one: the project total and each
+ * structure's. A part of a complete partition that has nothing recorded is none of it, not missing, wherever another
+ * part of that partition was recorded: the breakdown was made and this part had nothing in it (no squares over 12/12
+ * on a 6/12 roof). With no part of it recorded anywhere, the breakdown was never made and the amount is missing.
+ */
+function readMeasurements(datasetValue: unknown, definitionIds: string[]) {
+  const read = definitionIds.map((id) => measurementAmounts(datasetValue, id));
+  const partition = measurementPartOf(definitionIds[0]!);
+  const complete = !!partition && listMeasurementPartitions().some((entry) => entry.id === partition && entry.complete);
+  const siblings = complete ? listMeasurementDefinitions().filter((definition) => definition.slice?.partition === partition).map((definition) => measurementAmounts(datasetValue, definition.id)) : [];
+  const add = (values: (number | null)[], breakdown: boolean) => values.some((value) => value !== null) ? values.reduce<number>((sum, value) => sum + (value ?? 0), 0) : breakdown ? 0 : null;
+  const total = add(read.map((amounts) => amounts.total), siblings.some((amounts) => amounts.total !== null));
+  const recorded_total = add(read.map((amounts) => amounts.recorded_total), siblings.some((amounts) => amounts.recorded_total !== null));
+  // A structure is measured for this input when any of its parts, or any part of their partition, was recorded on it.
+  const named = new Map<string, string>();
+  for (const amounts of [...read, ...siblings]) for (const structure of amounts.structures) named.set(structure.id, structure.name);
+  const structures = [...named].map(([id, name]) => ({ id, name, value: read.reduce((sum, amounts) => sum + (amounts.structures.find((structure) => structure.id === id)?.value ?? 0), 0) }));
+  return { total, recorded_total, structures, structure_count: read[0]!.structure_count };
+}
 function resolveInput(input: PaySheetInput, context: PayContext, sheet?: Pick<PaySheet, "work">): Resolved {
   const source = input.source, label = input.label || input.name;
   const blocked = context.unavailable?.[source.kind];
@@ -229,7 +267,7 @@ function resolveInput(input: PaySheetInput, context: PayContext, sheet?: Pick<Pa
   let value: number | null = null, reason = `${label} is not available for this job.`;
   let structures: Resolved["structures"] = [];
   if (source.kind === "measurement") {
-    const amounts = measurementAmounts(context.measurements, source.definition);
+    const amounts = readMeasurements(context.measurements, measurementsRead(source));
     value = amounts.total;
     // Structures are priced one by one only when every structure has a value and together they are the project's
     // figure. Otherwise the total is the figure: it carries manual corrections, and a partial breakdown would underpay.

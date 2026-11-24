@@ -133,6 +133,26 @@ test('the wording step edits the template copy beside its document', async () =>
     await page.locator('[data-copy="nd_intro"]').focus();
     assert.equal(await page.locator('.gxd-copy-view [data-node-id="nd_intro"].gxd-copy-mark').count(), 1);
     assert.equal(await page.evaluate(() => window.handle.valid()), true);
+    // GP-166: a click on words in the document picks their field, which takes focus and marks them; the document stays
+    // where it is. Every field's words can be picked.
+    await page.waitForSelector('.gxd-copy-view [data-node-id="nd_terms"].gxd-copy-pick');
+    assert.equal(await page.locator('.gxd-copy-view .gxd-copy-pick').count(), 5);
+    const docTop = () => page.evaluate(() => document.querySelector('.gxd-copy-view .gxd-doc').scrollTop);
+    const before = await docTop();
+    const focused = () => page.evaluate(() => document.activeElement?.dataset?.copy || '');
+    await page.locator('.gxd-copy-view [data-node-id="nd_terms"]').click();
+    assert.equal(await focused(), 'nd_terms');
+    assert.deepEqual(await page.locator('.gxd-copy-view .gxd-copy-mark').evaluateAll((nodes) => nodes.map((node) => node.dataset.nodeId)), ['nd_terms']);
+    assert.equal(await docTop(), before, 'the document does not move under the click');
+    // This document's text nodes are not laid out apart, so the title's words are clicked where they are, not by position.
+    await page.locator('.gxd-copy-view [data-node-id="nd_title"] .fmdoc-run').first().dispatchEvent('click');
+    assert.equal(await focused(), 'nd_title');
+    assert.deepEqual(await page.locator('.gxd-copy-view .gxd-copy-mark').evaluateAll((nodes) => nodes.map((node) => node.dataset.nodeId)), ['nd_title']);
+    // Typed in, the document is drawn again and the words stay marked.
+    await page.keyboard.type('!');
+    await page.waitForFunction(() => document.querySelector('.gxd-copy-view [data-node-id="nd_title"].gxd-copy-mark')?.textContent.includes('proposal!'));
+    await page.keyboard.press('Backspace');
+    await page.locator('[data-copy="nd_intro"]').focus();
     await page.locator('[data-copy="nd_intro"]').blur();
     // Leaving keeps the document where it is; the next step lays it over the page in exactly that place.
     const carried = await page.evaluate(() => {

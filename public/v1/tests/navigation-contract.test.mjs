@@ -10,7 +10,7 @@ const projectModalSource = await readFile(path.join(publicRoot, 'libraries/apps/
 const actionItemsSource = await readFile(path.join(publicRoot, 'libraries/platform-action-items/platform-action-items.js'), 'utf8');
 const companySettingsSource = await readFile(path.join(publicRoot, 'libraries/apps/settings/company.js'), 'utf8');
 
-function navigationHarness(initial = '/portal/?tab=scheduling') {
+function navigationHarness(initial = '/portal/?tab=scheduling', { navigationApi = false } = {}) {
   const listeners = new Map();
   const entries = [{ url:new URL(initial, 'https://firstmate.test'), state:null }];
   let index = 0;
@@ -28,9 +28,11 @@ function navigationHarness(initial = '/portal/?tab=scheduling') {
     go(delta){
       const next = Math.max(0, Math.min(entries.length - 1, index + Number(delta || 0)));
       if (next === index) return;
+      const from = entries[index];
       index = next;
       syncLocation();
-      dispatch({ type:'popstate', state:entries[index].state });
+      // A step that only moves a frame (frameStep below) changes nothing in this page, so it hears nothing.
+      if (from.state !== entries[index].state || from.url.href !== entries[index].url.href) dispatch({ type:'popstate', state:entries[index].state });
     },
     back(){ this.go(-1); }
   };
@@ -41,8 +43,17 @@ function navigationHarness(initial = '/portal/?tab=scheduling') {
     removeEventListener(type, listener){ listeners.set(type, (listeners.get(type) || []).filter((item) => item !== listener)); },
     dispatchEvent:dispatch
   };
+  // The Navigation API lists this page's own entries, not a frame's.
+  const ownSteps = () => entries.map((entry, step) => ({ entry, step })).filter(({ entry }) => !entry.frame);
+  if (navigationApi) window.navigation = {
+    get currentEntry(){ const own = ownSteps(); return { index:own.findLastIndex(({ step }) => step <= index) }; },
+    entries:() => ownSteps().map(({ step }, at) => ({ key:`step-${step}`, index:at })),
+    traverseTo(key){ history.go(Number(String(key).slice(5)) - index); return { committed:Promise.resolve(), finished:Promise.resolve() }; }
+  };
   vm.runInNewContext(navigationSource, { window, document:window.document, URL, CustomEvent, console, setTimeout, clearTimeout });
-  return { window, navigation:window.Portal.navigation, entries, get index(){ return index; } };
+  // A frame on the page (a project window) adds an entry to the tab's history; this page's URL and state stay.
+  const frameStep = () => { const top = entries[index]; entries.splice(index + 1); entries.push({ url:top.url, state:top.state, frame:true }); index = entries.length - 1; };
+  return { window, navigation:window.Portal.navigation, entries, frameStep, get index(){ return index; } };
 }
 
 test('Feedback mounts the shared settings workspace and restores its own nested routes', async () => {
@@ -172,6 +183,25 @@ test('routed modal close uses Back only for an entry that owns its key', async (
   nav.replace({ contact:'direct-link' }, { ownedKeys:[] });
   assert.equal(nav.backOrClose(['contact'], { contact:null }).backed, false);
   assert.equal(nav.read().contact, undefined);
+});
+
+test('closing a contact after a project window added history entries leaves the contact for good (GP-165)', async () => {
+  for (const navigationApi of [false, true]) {
+    const harness = navigationHarness('/portal/?tab=contacts', { navigationApi });
+    const nav = harness.navigation;
+    const applied = [];
+    nav.registerHandler('test-contact', { priority:10, apply:(route) => applied.push(route.contact || '') });
+    nav.push({ contact:'contact-1' }, { ownedKeys:['contact'] });
+    // The contact opens a project; its window pushes its own entry, then the project closes back to the contact.
+    harness.frameStep();
+    const result = nav.backOrClose(['contact'], { contact:null, userTab:null });
+    assert.equal(result.backed, true);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    assert.equal(nav.read().contact, undefined, navigationApi ? 'Navigation API' : 'history.go');
+    assert.equal(harness.window.location.search, '?tab=contacts');
+    assert.equal(applied.at(-1), '', 'the route handlers see the contact closed');
+    if (navigationApi) assert.equal(harness.index, 0, 'goes straight to the page entry before the contact');
+  }
 });
 
 test('modal close exits the complete nested modal history segment', async () => {

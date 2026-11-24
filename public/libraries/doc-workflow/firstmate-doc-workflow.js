@@ -400,7 +400,11 @@
     const control = fieldShell(el, ctx, multiline
       ? `<textarea data-fmdw-control ${ctx.readonly ? 'disabled' : ''} placeholder="${esc(ctx.item.placeholder || '')}">${esc(value ?? '')}</textarea>`
       : `<input type="text" data-fmdw-control ${ctx.readonly ? 'disabled' : ''} value="${esc(value ?? '')}" placeholder="${esc(ctx.item.placeholder || '')}">`);
-    control?.addEventListener('change', () => ctx.write(control.value));
+    // Written soon after each pause in typing, so the preview follows the words (GP-168), and on change as before.
+    let last = String(value ?? ''), timer = 0;
+    const write = () => { clearTimeout(timer); if (!control || control.value === last) return; last = control.value; ctx.write(control.value); };
+    control?.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(write, 150); });
+    control?.addEventListener('change', write);
     return { validate: () => requiredError(ctx) };
   });
 
@@ -540,12 +544,38 @@
         const current = arr(ctx.value()).map((v) => cleanText(typeof v === 'object' ? obj(v).value : v));
         const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
         ctx.write(next);
+      } else if (obj(ctx.item.presentation).clearable === true && !ctx.item.required && selectedValues.includes(value)) {
+        // A choice that may be left unanswered (presentation.clearable): picking it again clears it (GP-157).
+        ctx.write(null);
       } else {
         ctx.write(value);
       }
       renderChoiceCards(el, ctx, options, multi);
       ctx.requestPreview();
     }));
+  }
+
+  /** A question's hint as an info tooltip beside its label (GP-157); it opens toward the side with room. */
+  function addItemTip(holder, text){
+    const label = holder.querySelector('.fmdw-field-label, .fmdw-toggle-copy strong');
+    if (!label) return;
+    const tip = document.createElement('button');
+    tip.type = 'button';
+    tip.className = 'fmdw-step-info fmdw-item-tip';
+    tip.setAttribute('aria-label', text);
+    tip.setAttribute('data-fmdw-tip', text);
+    tip.innerHTML = '<i class="fas fa-circle-info"></i>';
+    const place = () => {
+      const box = holder.closest('.fmdw-section') || holder.parentElement;
+      const area = box?.getBoundingClientRect?.();
+      const at = tip.getBoundingClientRect();
+      tip.classList.toggle('end', !!area && at.left > area.left + area.width / 2);
+    };
+    tip.addEventListener('mouseenter', place);
+    tip.addEventListener('focus', place);
+    // Inside a label: a tap shows the tip, it never works the label's control.
+    tip.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); tip.focus(); });
+    label.appendChild(tip);
   }
 
   registerKind('choice_group', (el, ctx) => {
@@ -1535,7 +1565,8 @@
       last = next;
       opts.onChange?.(next);
     };
-    editor.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(flush, 400); });
+    // Soon after each pause in typing, so the preview follows the words (GP-168).
+    editor.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(flush, 120); });
     editor.addEventListener('blur', flush);
     editor.addEventListener('change', flush);
     return { editor, flush };
@@ -3275,17 +3306,22 @@
   }
   /** The setup callout's answer for this page: undefined until decided, then shown (true) or not (false). */
   let paymentCallout;
-  /** One line under a payment due at signing: where it is paid, and setup when online payments are not on. */
-  function depositPayHtml(pay){
+  /**
+   * One line under the schedule's title when a payment falls due at signing (GP-168: by the title, not between the
+   * milestones): where it is paid, and setup when online payments are not on.
+   */
+  function depositPayHtml(pay, word = 'deposit'){
     if (!pay) return '';
     const reason = cleanText(pay.reason);
+    const what = word === 'deposit' ? 'the deposit' : 'what is due at signing';
+    const What = word === 'deposit' ? 'The deposit is' : 'What is due at signing is';
     const [state, icon, text] = pay.ready
-      ? ['ready', 'fa-circle-check', 'Paid online in the customer portal when the customer signs.']
+      ? ['ready', 'fa-circle-check', `${What} paid online in the customer portal when the customer signs.`]
       : pay.can_set_up || ['online_processing_off', 'no_merchant_account'].includes(reason)
-        ? ['setup', 'fa-credit-card', pay.can_set_up ? 'The customer can pay this in their customer portal once you set up payments.' : 'The customer can pay this in their customer portal once an administrator sets up payments.']
+        ? ['setup', 'fa-credit-card', pay.can_set_up ? `The customer can pay ${what} in their customer portal once you set up payments.` : `The customer can pay ${what} in their customer portal once an administrator sets up payments.`]
         : reason === 'not_approved'
-          ? ['setup', 'fa-hourglass-half', 'The customer can pay this in their customer portal once your payment account is approved.']
-          : ['off', 'fa-circle-info', 'Online payments are off, so the customer pays this outside the portal.'];
+          ? ['setup', 'fa-hourglass-half', `The customer can pay ${what} in their customer portal once your payment account is approved.`]
+          : ['off', 'fa-circle-info', `Online payments are off, so the customer pays ${what} outside the portal.`];
     return `<div class="fmdw-sched-pay ${state}" data-fmdw-sched-pay="${state}"><i class="fas ${icon}"></i><span>${esc(text)}</span>${pay.can_set_up ? `<button type="button" class="fmdw-setup-pill" data-fmdw-pay-setup title="Set up payments">Set up</button>` : ''}</div>`;
   }
   function normalizeScheduleRow(row, index){
@@ -3313,6 +3349,7 @@
         .then((next) => { if (destroyed || !next) return; pay = next; if (!pay.can_set_up) paymentCallout = false; render(); });
     }
     const word = dueNowWord(ctx.item);
+    const dueAtSigning = (row) => dueNow(row) && (row.kind === 'fixed' ? row.amount_cents > 0 : row.percent > 0);
     const itemKind = cleanText(ctx.item.payment_kind);
     function calloutHtml(){
       if (!pay?.can_set_up || paymentCallout !== true) return '';
@@ -3387,6 +3424,7 @@
           <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
           ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
           ${calloutHtml()}
+          ${rows.some(dueAtSigning) ? depositPayHtml(pay, word) : ''}
           <div class="fmdw-card fmdw-sched">
             ${rows.length ? rows.map((row, index) => `
               <div class="fmdw-sched-row" data-fmdw-sched="${index}">
@@ -3405,7 +3443,7 @@
                 ${row.due_rule === 'on_date' ? `<input type="date" data-fmdw-sched-date value="${esc(row.due_date)}" ${ctx.readonly ? 'disabled' : ''}>` : ''}
                 <b class="fmdw-sched-cents" data-fmdw-sched-cents>${esc(moneyFromCents(rowCents(row)))}</b>
                 ${ctx.readonly ? '' : `<button type="button" class="fmdw-icon-btn danger" data-fmdw-sched-remove title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>`}
-              </div>${dueNow(row) && (row.kind === 'fixed' ? row.amount_cents > 0 : row.percent > 0) ? depositPayHtml(pay) : ''}`).join('') : `<p class="fmdw-hint" style="margin:0">No payment terms yet. Pick a starting point or add milestones.</p>`}
+              </div>`).join('') : `<p class="fmdw-hint" style="margin:0">No payment terms yet. Pick a starting point or add milestones.</p>`}
             <div data-fmdw-sched-summary>${rows.length ? summaryHtml() : ''}</div>
             ${ctx.readonly ? '' : `
               <div class="fmdw-row-actions">
@@ -4108,8 +4146,11 @@
       if (!items.length) {
         el.items.innerHTML = `<div class="fmdw-empty"><i class="fas fa-circle-info"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8a8fecd55b2bdc","Nothing to answer on this step.") ?? "Nothing to answer on this step.")}</span></div>`;
       }
-      const renderItem = (item, parent) => {
+      const renderItem = (item, parent, section) => {
         const holder = document.createElement('div');
+        // A hint shown as an info tooltip beside the label rather than as text under it
+        // (presentation.hint "tooltip" on the item, or presentation.hints on its section; GP-157).
+        const tipText = firstText(obj(item.presentation).hint, obj(obj(section).presentation).hints) === 'tooltip' ? cleanText(item.description) : '';
         const itemTransition = obj(obj(item.presentation).transition);
         // Lists and grids need the full row; simple fields pair up.
         const wide = ['measurements', 'payment_schedule', 'line_items_review', 'line_item_editor', 'review', 'content_blocks', 'piece_select', 'piece_picker', 'choice_group'].includes(cleanText(item.kind))
@@ -4128,7 +4169,7 @@
         const renderer = kindRegistry.get(cleanText(item.kind));
         const readonly = item.disabled === true || opts.readonly === true || !allowedWrite(cleanText(item.writes) || 'params._');
         const ctx = {
-          item,
+          item: tipText ? { ...item, description: '' } : item,
           step,
           audience,
           readonly,
@@ -4160,18 +4201,22 @@
           console.warn('FMDocWorkflow kind renderer failed', item.kind, error);
           holder.innerHTML = `<div class="fmdw-card"><p class="fmdw-hint"><i class="fas fa-triangle-exclamation"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_63c83caf528f7c"," This question could not be displayed.") ?? " This question could not be displayed.")}</p></div>`;
         }
+        if (tipText) addItemTip(holder, tipText);
         st.itemHandles.push({ item, el: holder, ctx, handle });
       };
       sections.forEach((section) => {
         const sectionEl = document.createElement('section');
         const transition = obj(section.transition);
-        sectionEl.className = `fmdw-section fmdw-enter-${esc(inPlace ? 'none' : firstText(transition.type, section.legacy ? 'none' : 'grow'))}`;
+        const sectionLook = obj(section.presentation);
+        // presentation.columns (2 or 3) lays a section's questions out in that many columns; dense tightens it (GP-157).
+        const columns = [2, 3].includes(Number(sectionLook.columns)) ? Number(sectionLook.columns) : 0;
+        sectionEl.className = `fmdw-section${columns ? ' fmdw-section-cols' : ''}${sectionLook.dense === true ? ' fmdw-section-dense' : ''} fmdw-enter-${esc(inPlace ? 'none' : firstText(transition.type, section.legacy ? 'none' : 'grow'))}`;
         sectionEl.style.setProperty('--fmdw-enter-ms', `${Math.max(0, Number(transition.duration_ms || 220))}ms`);
         const background = firstText(obj(section.style).background);
         if (background) sectionEl.style.background = background;
         if (cleanText(section.title)) sectionEl.innerHTML = `<h3>${esc(section.title)}</h3>${cleanText(section.description) ? `<p>${esc(section.description)}</p>` : ''}`;
-        const body = document.createElement('div'); body.className = 'fmdw-section-items'; sectionEl.appendChild(body); el.items.appendChild(sectionEl);
-        arr(section.items).forEach((item) => renderItem(item, body));
+        const body = document.createElement('div'); body.className = `fmdw-section-items${columns ? ` fmdw-cols-${columns}` : ''}`; sectionEl.appendChild(body); el.items.appendChild(sectionEl);
+        arr(section.items).forEach((item) => renderItem(item, body, section));
       });
       // Footer
       const isLast = index >= steps.length - 1;
@@ -4290,7 +4335,18 @@
     function schedulePreview(){
       if (!preview || st.destroyed) return;
       clearTimeout(st.previewTimer);
-      st.previewTimer = setTimeout(() => refreshPreview(), 700);
+      st.previewTimer = setTimeout(() => refreshPreview(), 450);
+      // A host that can draw typed answers in the browser (preview.local) shows them at once, the next frame; the
+      // server's resolve above follows and is what stays (GP-168).
+      if (typeof preview.local === 'function' && !st.localFrame) {
+        st.localFrame = requestAnimationFrame(() => {
+          st.localFrame = 0;
+          if (st.destroyed || el.root.classList.contains('preview-hidden') || el.root.classList.contains('preview-folded')) return;
+          let quick = null;
+          try { quick = preview.local(); } catch (e) { quick = null; }
+          if (quick && typeof quick === 'object') renderPreview(obj(quick), { local: true });
+        });
+      }
     }
     async function refreshPreview(){
       if (!preview || st.destroyed) return;
@@ -4303,6 +4359,9 @@
         const resolved = obj(await preview.resolve());
         if (st.destroyed) return;
         if (el.root.classList.contains('preview-hidden') || el.root.classList.contains('preview-folded')) { st.lastResolved = resolved; return; }
+        // Typed on while this resolved: it is already behind the words, so the page keeps them (drawn locally on it).
+        const quick = st.previewStale && typeof preview.local === 'function' ? (() => { try { return preview.local(); } catch (e) { return null; } })() : null;
+        if (quick && typeof quick === 'object') { st.lastResolved = resolved; renderPreview(obj(quick), { local: true }); return; }
         renderPreview(resolved);
         noteOfflineView(resolved);
       } catch (error) {
@@ -4333,6 +4392,7 @@
     }
     function renderPreviewUnavailable(){
       if (!el.previewStage) return;
+      dropPendingPreview();
       try { st.previewHandle?.destroy?.(); } catch (e) {}
       st.previewHandle = null;
       el.previewStage.innerHTML = `<div class="fmdw-preview-empty"><i class="fas fa-eye-slash"></i><span>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_4478f7b14b3b0c","Preview unavailable right now.") ?? "Preview unavailable right now.")}</span></div>`;
@@ -4351,21 +4411,52 @@
       const label = el.preview?.querySelector('[data-fmdw-zoom-pct]');
       if (label) label.textContent = st.previewZoom > 0 ? `${Math.round(scale * 100)}%` : 'Fit';
     }
-    function renderPreview(resolved){
+    /**
+     * Pictures already loaded in the preview, by address, so a redraw (a layout or display change, a word typed) puts
+     * the same loaded picture back instead of fetching and decoding it again (GP-168).
+     */
+    function loadedPictures(){
+      const kept = new Map();
+      el.previewStage?.querySelectorAll('img').forEach((img) => { const src = img.getAttribute('src'); if (src && img.complete && img.naturalWidth && !kept.has(src)) kept.set(src, img); });
+      return kept;
+    }
+    function reusePictures(kept, within = el.previewStage){
+      if (!kept.size || !within) return;
+      within.querySelectorAll('img').forEach((img) => {
+        const old = kept.get(img.getAttribute('src'));
+        if (!old || old === img) return;
+        kept.delete(img.getAttribute('src'));
+        [...old.attributes].forEach((attr) => { if (attr.name !== 'src') old.removeAttribute(attr.name); });
+        [...img.attributes].forEach((attr) => { if (attr.name !== 'src') old.setAttribute(attr.name, attr.value); });
+        img.replaceWith(old);
+      });
+    }
+    function renderPreview(resolved, options = {}){
       if (!el.previewStage) return;
-      st.lastResolved = resolved; // zoom changes retransform without re-resolving
+      // A local draw stands in until the server's resolve; zoom re-renders from the server's.
+      if (!options.local) st.lastResolved = resolved; // zoom changes retransform without re-resolving
       if (typeof preview.mount === 'function') {
         try { preview.mount(el.previewStage, resolved); return; } catch (e) { /* fall through */ }
       }
       const renderer = root.FMDocRenderer;
       const definition = obj(resolved.resolved_definition || resolved.definition);
       if (!renderer?.render || (!arr(definition.pages).length && !definition.root)) { renderPreviewUnavailable(); return; }
-      try { st.previewHandle?.destroy?.(); } catch (e) {}
-      st.previewHandle = null;
-      el.previewStage.innerHTML = '';
+      // A redraw is drawn out of sight and takes the page's place once it is ready (GP-168), so the page never goes
+      // blank or shows a picture still loading between two draws. A draw not yet shown when the next comes is dropped.
+      dropPendingPreview();
+      const kept = loadedPictures();
+      const shown = st.previewHandle && el.previewStage.childNodes.length ? st.previewHandle : null;
+      if (!shown) { try { st.previewHandle?.destroy?.(); } catch (e) {} st.previewHandle = null; el.previewStage.innerHTML = ''; }
+      const buffer = document.createElement('div');
+      buffer.setAttribute('data-fmdw-preview-draw', '');
+      if (shown) {
+        if (getComputedStyle(el.previewStage).position === 'static') el.previewStage.style.position = 'relative';
+        buffer.style.cssText = `position:absolute;left:14px;top:14px;width:${Math.max(0, el.previewStage.clientWidth - 28)}px;visibility:hidden;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:12px`;
+      } else buffer.style.cssText = 'display:contents';
+      el.previewStage.append(buffer);
       try {
         const scale = previewScale(definition);
-        st.previewHandle = renderer.render(el.previewStage, {
+        const handle = renderer.render(buffer, {
           document: definition,
           theme: resolved.theme || null,
           // Server-resolved theme_vars carry org branding the client can't
@@ -4381,10 +4472,39 @@
           },
           scale
         });
+        reusePictures(kept, buffer);
         syncZoomLabel(scale);
+        if (!shown) {
+          st.previewHandle = handle;
+          // Widgets and pictures drawn a moment later (the renderer finishes asynchronously) get theirs too.
+          Promise.resolve(handle?.ready?.()).catch(() => null).then(() => { if (st.previewHandle === handle) reusePictures(kept, buffer); });
+          return;
+        }
+        st.previewNext = { handle, buffer };
+        Promise.resolve(handle?.ready?.()).catch(() => null).then(() => {
+          if (st.destroyed || st.previewNext?.handle !== handle) return;
+          st.previewNext = null;
+          reusePictures(kept, buffer);
+          const keepTop = el.previewStage.scrollTop, keepLeft = el.previewStage.scrollLeft;
+          try { shown.destroy?.(); } catch (e) {}
+          [...el.previewStage.childNodes].forEach((node) => { if (node !== buffer) node.remove(); });
+          buffer.style.cssText = 'display:contents';
+          st.previewHandle = handle;
+          // Zoomed while it was drawn: the page takes the zoom shown now.
+          const now = previewScale(definition);
+          if (now !== scale && handle?.setScale) { try { handle.setScale(now); } catch (e) {} }
+          el.previewStage.scrollTop = keepTop; el.previewStage.scrollLeft = keepLeft;
+        });
       } catch (error) {
         renderPreviewUnavailable();
       }
+    }
+    function dropPendingPreview(){
+      const next = st.previewNext;
+      st.previewNext = null;
+      if (!next) return;
+      try { next.handle?.destroy?.(); } catch (e) {}
+      next.buffer?.remove();
     }
     /** Zoom without re-resolving: retransform the live handle (renderer fast
      *  path) or re-render the cached payload. */
@@ -4545,8 +4665,10 @@
         if (st.destroyed) return;
         st.destroyed = true;
         clearTimeout(st.previewTimer);
+        if (st.localFrame) cancelAnimationFrame(st.localFrame);
         try { layoutObserver?.disconnect(); } catch (e) {}
         destroyItemHandles();
+        dropPendingPreview();
         try { st.previewHandle?.destroy?.(); } catch (e) {}
         container.innerHTML = '';
       },
@@ -4628,6 +4750,29 @@
 .fmdw-step-info:hover,.fmdw-step-info:focus-visible{color:var(--fmdw-primary);outline:0}
 .fmdw-step-info::after{content:attr(data-fmdw-tip);position:absolute;left:-6px;top:calc(100% + 6px);z-index:30;width:min(360px,72vw);padding:10px 12px;border-radius:10px;background:#111827;color:#fff;font-size:12px;font-weight:700;line-height:1.45;text-align:left;white-space:normal;box-shadow:0 12px 30px rgba(16,24,40,.25);opacity:0;visibility:hidden;transform:translateY(-3px);transition:opacity .12s ease,transform .12s ease;pointer-events:none}
 .fmdw-step-info:hover::after,.fmdw-step-info:focus::after{opacity:1;visibility:visible;transform:none}
+.fmdw-item-tip{padding:0 3px;margin-left:3px;font-size:11px;line-height:1;text-transform:none;letter-spacing:0;vertical-align:baseline}
+.fmdw-item-tip::after{width:min(260px,70vw);font-size:11.5px}
+.fmdw-item-tip.end::after{left:auto;right:-6px}
+.fmdw-section-cols{container-type:inline-size}
+.fmdw-section-items.fmdw-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@container (max-width:360px){.fmdw-section-items.fmdw-cols-3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (max-width:300px){.fmdw-section-items.fmdw-cols-2,.fmdw-section-items.fmdw-cols-3{grid-template-columns:minmax(0,1fr)}}
+.fmdw-section-dense{padding:14px;gap:10px}
+.fmdw-section-dense>.fmdw-section-items{gap:12px}
+.fmdw-section-dense .fmdw-field{gap:5px}
+.fmdw-section-dense .fmdw-field input,.fmdw-section-dense .fmdw-field select{padding:8px 10px}
+.fmdw-section-dense .fmdw-field textarea{min-height:58px;padding:8px 10px}
+/* A switch reads like the fields beside it: its label above, the switch where their input is. */
+.fmdw-section-dense .fmdw-toggle-row{flex-direction:column;align-items:flex-start;gap:5px;border:0;border-radius:0;background:none;padding:0}
+.fmdw-section-dense .fmdw-toggle-copy{order:-1}
+.fmdw-section-dense .fmdw-toggle-copy strong{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:var(--fmdw-muted);white-space:nowrap}
+.fmdw-section-dense .fmdw-toggle{margin:6px 0}
+.fmdw-section-dense .fmdw-choice-card{padding:10px 12px;gap:4px}
+.fmdw-section-dense .fmdw-card:has(>.fmdw-row-actions){display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:10px}
+.fmdw-section-dense .fmdw-card>.fmdw-li-list{flex:1 1 100%}
+.fmdw-section-dense .fmdw-card>.fmdw-li-list:has(>.fmdw-hint:only-child){flex:1 1 0;order:1}
+.fmdw-section-dense .fmdw-card>.fmdw-li-list>.fmdw-hint{margin:0}
+.fmdw-section-dense .fmdw-card>.fmdw-li-total{flex:1 1 100%}
 .fmdw-step-actions{flex:none;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .fmdw-step-actions:empty{display:none}
 .fmdw-step-actions .fmdw-btn{min-height:34px;padding:0 12px}
@@ -5013,7 +5158,7 @@
 .fmdw-sched-cents{min-width:88px;text-align:right;font-size:12.5px;font-weight:1000;font-variant-numeric:tabular-nums}
 .fmdw-sched-summary{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;font-weight:850;color:var(--fmdw-muted)}
 .fmdw-sched-summary b{color:var(--fmdw-ink);font-weight:1000;font-variant-numeric:tabular-nums}
-.fmdw-sched-pay{display:flex;align-items:center;gap:8px;margin:-4px 0 2px 26px;padding:6px 6px 6px 10px;border-radius:10px;font-size:11.5px;font-weight:800;line-height:1.35;background:#f2f4f7;color:#475467}
+.fmdw-sched-pay{display:flex;align-items:center;gap:8px;margin:0 0 2px;padding:6px 6px 6px 10px;border-radius:10px;font-size:11.5px;font-weight:800;line-height:1.35;background:#f2f4f7;color:#475467}
 .fmdw-sched-pay span{flex:1;min-width:0}
 .fmdw-sched-pay.ready{background:#ecfdf3;color:#067647}
 .fmdw-sched-pay.setup{background:#fff8e6;color:#7a5b00}

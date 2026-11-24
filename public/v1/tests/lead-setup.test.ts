@@ -31,6 +31,15 @@ test("the leads setup makes new leads arrive as new leads, saves the new-lead fl
   let status = await setup.leadSetupStatus(ctx);
   assert.deepEqual(status.answered, { sources: false, contact: false, no_answer: false, questions: false, script: false, new_menu: false });
   assert.equal(status.flow?.kind, "call", "unanswered, the flow is the call script");
+  // GP-154: the first call asks their name and whether a spouse is home, not about insurance or "anything else"; with
+  // nothing answered a missed call texts, then tries again later (the email is the third choice, off).
+  assert.deepEqual(status.suggested_questions.map((entry) => entry.key), ["name", "need", "address", "timeline", "spouse", "found_us"]);
+  const { NO_ANSWER_ACTIONS, manualLeadFlow } = await import("../flows/new-lead.js");
+  assert.deepEqual([...NO_ANSWER_ACTIONS], ["text", "retry", "email"]);
+  const missed = status.flow!.steps.find((step) => step.id === "no_answer")!.blocks.map((block) => block.id);
+  assert.deepEqual(missed.filter((id) => id.startsWith("no_answer_")), ["no_answer_text", "no_answer_retry"]);
+  const manualKeys = manualLeadFlow(status.suggested_questions).steps.flatMap((step) => step.blocks.map((block) => (block as { key?: string }).key).filter(Boolean));
+  assert.equal(new Set(manualKeys).size, manualKeys.length, "New › Lead asks each thing once (its own name and address, not the suggested ones again)");
   await assert.rejects(() => setup.saveLeadSetup({ ...(ctx as Record<string, unknown>), auth: rep } as never, { part: "contact", method: "call" }), /Company settings/);
 
   status = await setup.saveLeadSetup(ctx, { part: "sources", sources: ["email", "website"] });

@@ -140,7 +140,7 @@ const css = `
 .gxd-drop small{font-size:12px;font-weight:500;color:#667085}
 .gxd-drop.gxd-dragging{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.06)}
 .gxd-banner.gxd-more{margin:0}
-.gxd-uploads-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:auto;padding:12px 0 2px;border-top:1px solid #f2f4f7;background:#fff}
+.gxd-uploads-foot{position:sticky;bottom:0;display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:auto;padding:12px 0 2px;border-top:1px solid #f2f4f7;background:#fff}
 .gxs-choices .gxd-badge{align-self:auto}
 .gxd-note{font-size:12px!important;color:#667085!important}
 /* GP-94: the proposal kinds note sits centred under its two tiles. */
@@ -255,6 +255,8 @@ const css = `
 .gxd-copy-view .gxd-doc{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:14px;box-sizing:border-box}
 .gxd-copy-view .gxd-doc>div{margin:0 auto}
 .gxd-copy-view [data-node-id].gxd-copy-mark{outline:2px solid var(--primary,#d93025);outline-offset:3px;border-radius:2px}
+.gxd-copy-view [data-node-id].gxd-copy-pick{cursor:pointer}
+.gxd-copy-view [data-node-id].gxd-copy-pick:hover:not(.gxd-copy-mark){outline:1px dashed color-mix(in srgb,var(--primary,#d93025) 55%,transparent);outline-offset:3px;border-radius:2px}
 /* Advanced: a link beside the step's title, only when the organization has the template editor (GP-13). */
 .gxs-titlebar:has(.gxd-studio-link) h2{flex:0 1 auto}
 .gxd-studio-link{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px;border:0;border-radius:7px;background:none;font:inherit;font-size:13px;font-weight:600;color:#475467;cursor:pointer}
@@ -273,7 +275,10 @@ const css = `
 .gxd-first-lead{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:#ecfdf3;color:#05603a!important;font-size:13px!important}
 .gxd-first-lead i{font-size:15px}
 .gxd-first-app{position:relative;flex:1 1 auto;min-height:0;overflow:hidden;border-radius:10px}
-.gxd-first-app .fmdx-editor-top,.gxd-first-app .fmdx-doc-card-row{display:none!important}
+.gxd-first-app .fmdx-doc-card-row,.gxd-first-app .fmdx-editor-top:not(:has(>[data-fmdx-mode-toggle]:not([hidden]))){display:none!important}
+/* In the editor ("Edit manually") the bar keeps only its way back to the steps (GP-169). */
+.gxd-first-app .fmdx-editor-top>:not([data-fmdx-mode-toggle]){display:none!important}
+.gxd-first-app .fmdx-editor-top>[data-fmdx-mode-toggle]{grid-column:1/-1;justify-self:start;width:auto!important;padding:0 12px!important;font-size:13px!important;gap:7px!important}
 .gxd-first .gxd-busy{flex:1 1 auto;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;min-height:100%;color:#475467;font-size:13px}
 /* The wide steps (style, prices, wording, first proposal) take the project window's size (GP-23): on the page the
    window manager's modal (min(1720, 96%) x min(1180, 92%), centred), in a project window the whole window. A phone keeps
@@ -599,10 +604,14 @@ export function mount(el, ctx){
   // columns of the wide sheet (FM-610). It starts with two ways in: go through the prices by hand, or upload estimates
   // they already send, as many as they have, on a page of its own (GP-51), which are read into the same lines to check. A line can be added from the rest of the price book
   // by name, or made new with its quantity from the measurements. The finish writes it all (documents.setup.apply).
+  // The sheet widens only for the lines (GP-164): the two ways in and the estimates page before anything is read keep
+  // the setup's own size.
   function pricesPart(){
     let alive = true, sheet = null, lines = [], editor = null, banner = null, picker = null, newCount = 0;
     const sheetEl = el.closest('.gxs'), wasWide = !!sheetEl?.classList.contains('gxs-wide');
-    sheetEl?.classList.add('gxs-wide');
+    const fit = (wide) => sheetEl?.classList.toggle('gxs-wide', wasWide || wide);
+    // Back from a later step goes straight to the lines: wide while they load, so the sheet does not jump.
+    fit(!!(selections.lines || array(selections.prices).length || array(was.lines).length));
     const pane = el.closest('.gxs-step'), wasFill = !!pane?.hasAttribute('data-fill');
     const given = new Map(array(selections.prices).map((entry) => [clean(entry.item_id), Number(entry.unit_price)]));
     const givenLines = selections.lines && typeof selections.lines === 'object' ? selections.lines : null;
@@ -673,10 +682,9 @@ export function mount(el, ctx){
       </div>`;
     function startHtml(){
       return `<div class="gxd">
-        <p>${esc(t('prices_start_lead', 'Your proposals are priced from these lines. Start from an estimate you already send, or go through them yourself.'))}</p>
         <div class="gxs-choices" style="--gxs-n:2" role="group" aria-label="${esc(ctx.L(ctx.step.title))}">
           <button type="button" class="gxd-tile gxs-choice" data-start="estimate"><span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas fa-file-arrow-up"></i></span><span class="gxs-choice-text"><em class="gxd-badge">${esc(t('prices_start_fastest', 'Fastest'))}</em><strong>${esc(t('prices_start_estimates', 'Upload existing estimates'))}</strong><small>${esc(t('prices_start_estimates_hint', 'We’ll read through these to set up your prices.'))}</small></span></button>
-          <button type="button" class="gxd-tile gxs-choice" data-start="manual"><span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas fa-list-check"></i></span><span class="gxs-choice-text"><strong>${esc(t('prices_start_manual', 'Review my prices manually'))}</strong><small>${esc(t('prices_start_manual_hint', 'Go through the usual lines of a roof and set what you charge for each.'))}</small></span></button>
+          <button type="button" class="gxd-tile gxs-choice" data-start="manual"><span class="gxd-icon gxs-choice-icon" aria-hidden="true"><i class="fas fa-list-check"></i></span><span class="gxs-choice-text"><strong>${esc(t('prices_start_manual_2', 'Build my prices manually'))}</strong><small>${esc(t('prices_start_manual_hint', 'Go through the usual lines of a roof and set what you charge for each.'))}</small></span></button>
         </div>
         <p class="gxd-error" role="alert" data-error></p>
       </div>`;
@@ -710,7 +718,7 @@ export function mount(el, ctx){
     }
     const uploadsDoneHtml = () => pendingEstimates() ? `<span class="gxs-spin" aria-hidden="true"></span>${esc(t('prices_estimate_reading', 'Reading…'))}` : esc(t('prices_uploads_continue', 'Continue'));
     function uploadsHtml(){
-      return `<div class="gxd gxd-uploads">
+      return `<div class="gxd gxd-uploads"${uploadsMin ? ` style="min-height:${uploadsMin}px"` : ''}>
         <p>${esc(t('prices_start_estimates_hint', 'We’ll read through these to set up your prices.'))}</p>
         <ul class="gxd-files" data-estimates aria-live="polite">${estimates.map(estimateHtml).join('')}</ul>
         <button type="button" class="gxd-add gxd-drop" data-add-estimates><i class="fas fa-file-arrow-up" aria-hidden="true"></i><span><strong>${esc(estimates.length ? t('prices_upload_more', 'Add more estimates') : t('prices_uploads_choose', 'Choose estimates'))}</strong><small>${esc(t('prices_uploads_kinds', 'PDFs or photos, up to 20 MB each'))}</small></span></button>
@@ -779,6 +787,8 @@ export function mount(el, ctx){
     placeOf = () => ({ phase: phase === 'uploads' ? 'list' : phase, lines });
     function draw(focus){
       if (!alive) return;
+      // The lines are wide; the estimates page stays as it was opened from (narrow from the start, wide from the lines).
+      fit(phase === 'list' || (phase === 'uploads' && uploadsFrom === 'list'));
       el.innerHTML = phase === 'uploads' ? uploadsHtml() : phase === 'start' ? startHtml() : listHtml();
       if (focus) el.querySelector(focus)?.focus({ preventScroll: false });
     }
@@ -810,10 +820,13 @@ export function mount(el, ctx){
     // ── Estimates they already send (GP-51) ──
     // A page of their own: each file is read as it is added (one estimate per read, two at a time), listed with how
     // that went, and more can be added. Continue puts them all into the lines at once.
-    let estimates = [], estimateCount = 0, uploadsFrom = 'start', mergedKey = '';
+    let estimates = [], estimateCount = 0, uploadsFrom = 'start', mergedKey = '', uploadsMin = 0;
     function openUploads(from){
+      // From the two ways in the page is at least as tall as they and the sheet's footer it hides were, so the sheet
+      // keeps its size until estimates are read (GP-164); from the lines it fills the wide sheet it is on.
+      uploadsMin = from === 'start' ? (el.querySelector('.gxd')?.offsetHeight || 0) + (sheetEl?.querySelector('.gxs-foot')?.offsetHeight || 0) : 0;
       uploadsFrom = from; phase = 'uploads';
-      pane?.setAttribute('data-fill', '');
+      if (from === 'list') pane?.setAttribute('data-fill', '');
       draw();
       ctx.setTitle?.(t('prices_uploads_title', 'Upload existing estimates'));
       // The page has its own Back and Continue: the sheet's footer hides, and the phone's back comes back here.
@@ -1448,14 +1461,24 @@ export function mount(el, ctx){
         handle = Renderer.render(docHost.firstElementChild, { document: definition, theme: preview.theme, themeContext: { overrides: object(preview.theme_vars) }, widgetData: object(preview.widget_data), mode: 'static', scale: width / (612 * 96 / 72) });
       } catch (failure) { docHost.textContent = clean(failure?.message); }
       docHost.scrollTop = keep;
+      // Once drawn, the words a field changes can be picked in the document too (GP-166: a click goes to that field), and
+      // the words of the field being typed in stay marked.
+      const drawn = handle;
+      Promise.resolve(drawn?.ready?.()).catch(() => null).then(() => {
+        if (!alive || handle !== drawn) return;
+        fieldsHost.querySelectorAll('[data-copy]').forEach((field) => docHost.querySelector(`[data-node-id="${CSS.escape(field.dataset.copy)}"]`)?.classList.add('gxd-copy-pick'));
+        if (fieldsHost.contains(document.activeElement)) mark(document.activeElement.closest?.('[data-copy]')?.dataset.copy || '', false);
+      });
     }
     const redraw = () => { clearTimeout(timer); timer = setTimeout(() => { if (alive) draw(); }, 180); };
-    /** The text a field is about, in the document: scrolled to and marked while the field has focus. */
-    function mark(id){
+    /** The text a field is about, in the document: scrolled to (unless it was picked there) and marked while the field has focus. */
+    let picked = false;
+    function mark(id, scroll = !picked){
       docHost.querySelectorAll('.gxd-copy-mark').forEach((node) => node.classList.remove('gxd-copy-mark'));
       const node = id ? docHost.querySelector(`[data-node-id="${CSS.escape(id)}"]`) : null;
       if (!node) return;
       node.classList.add('gxd-copy-mark');
+      if (!scroll) return;
       const top = node.getBoundingClientRect().top - docHost.getBoundingClientRect().top + docHost.scrollTop;
       docHost.scrollTo({ top: Math.max(0, top - 60), behavior: reducedMotion() ? 'auto' : 'smooth' });
     }
@@ -1673,6 +1696,31 @@ export function mount(el, ctx){
       setActive(field.closest('.gxd-copy-sec')?.dataset.sec || '');
     };
     const onBlur = () => mark('');
+    /**
+     * A click on the document picks the wording under it (GP-166): the nearest text a field changes, whose field is
+     * scrolled into the column, given focus and marked, as focusing that field would. The document stays where it is.
+     */
+    const onPick = (event) => {
+      if (!data) return;
+      let node = event.target.closest?.('[data-node-id]'), field = null;
+      while (node && docHost.contains(node) && !field) {
+        field = fieldsHost.querySelector(`[data-copy="${CSS.escape(node.dataset.nodeId)}"]`);
+        if (!field) node = node.parentElement?.closest('[data-node-id]');
+      }
+      if (!field) return;
+      event.preventDefault();
+      const box = fieldsHost.getBoundingClientRect(), at = field.getBoundingClientRect();
+      if (at.top < box.top + 8 || at.bottom > box.bottom - 8) {
+        const top = at.top - box.top + fieldsHost.scrollTop - Math.max(8, (box.height - at.height) / 3);
+        fieldsHost.scrollTo({ top: Math.max(0, top), behavior: reducedMotion() ? 'auto' : 'smooth' });
+      }
+      picked = true;
+      try { field.focus({ preventScroll: true }); } finally { picked = false; }
+      // Focus already there (a second click on the same words) marks nothing new: mark it here.
+      mark(field.dataset.copy, false);
+      setActive(field.closest('.gxd-copy-sec')?.dataset.sec || '');
+    };
+    docHost.addEventListener('click', onPick);
     fieldsHost.addEventListener('input', onInput);
     fieldsHost.addEventListener('focusin', onFocus);
     fieldsHost.addEventListener('focusout', onBlur);
@@ -1745,6 +1793,7 @@ export function mount(el, ctx){
         alive = false; clearTimeout(timer); observer?.disconnect(); fieldsObserver?.disconnect(); drop(lifted);
         void closeStudio(false);
         advanced?.removeEventListener('click', onAdvanced); advanced?.remove();
+        docHost.removeEventListener('click', onPick);
         fieldsHost.removeEventListener('input', onInput); fieldsHost.removeEventListener('focusin', onFocus); fieldsHost.removeEventListener('focusout', onBlur);
         fieldsHost.removeEventListener('scroll', below); more.removeEventListener('click', onMore); nav.removeEventListener('click', onNav);
         more.removeEventListener('pointerdown', onPullDown); more.removeEventListener('pointermove', onPullMove); more.removeEventListener('pointerup', onPullUp); more.removeEventListener('pointercancel', onPullUp);

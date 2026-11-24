@@ -1351,11 +1351,12 @@
       // A phone opens documents on the page; the Data tray covers it, so it starts closed there.
       dataPanelOpen: !isPhone(),
       previewCleanup: null,
-      sentEditor: null,               // "Edit manually" (FMDocSentEditor) while it is open
       // workflow view (contracts §8)
       docWorkflow: null,              // { definition, state } for the open doc (null = none)
       workflowHandle: null,           // FMDocWorkflow mount handle
       workflowWrites: { params: {}, outputs: {} },
+      previewTyped: new Map(),         // params answered since the preview's last server resolve (localWorkflowPreview, GP-168)
+      previewLast: null,               // that resolve: the definition, scope and widget data the local preview starts from
       workflowFlushTimer: 0,
       workflowFlushing: null,
       // unified document screen (one top bar for BOTH views)
@@ -1389,14 +1390,13 @@
     }
     function syncBack(){
       if (!backHistory || state.destroyed) return;
-      backHistory.depth(openModals.length + (state.previewCleanup ? 1 : 0) + (state.sentEditor ? 1 : 0) + docBackDepth());
+      backHistory.depth(openModals.length + (state.previewCleanup ? 1 : 0) + docBackDepth());
     }
     /** One back press: true when something went back. */
     function pressBack(){
       const modal = openModals[openModals.length - 1];
       if (modal) { modal.dismiss(); return true; }
       if (state.previewCleanup) { state.previewCleanup(); return true; }
-      if (state.sentEditor) { state.sentEditor.close(); return true; }
       if (state.view !== 'editor') return false;
       if (state.docView === 'editor' && stepsBehindEditor()) { setDocView('workflow'); return true; }
       if (state.docView === 'workflow' && state.workflowHandle?.position?.().index > 0) { state.workflowHandle.back(); return true; }
@@ -2167,7 +2167,10 @@
       });
       state.workflowTouched = true; // editor view must re-resolve on switch
       if (target.startsWith('outputs.')) state.workflowWrites.outputs[target.slice('outputs.'.length)] = clone(value);
-      else state.workflowWrites.params[target.replace(/^params\./, '')] = clone(value);
+      else {
+        state.workflowWrites.params[target.replace(/^params\./, '')] = clone(value);
+        state.previewTyped.set(target.replace(/^params\./, ''), clone(value));
+      }
       clearTimeout(state.workflowFlushTimer);
       state.workflowFlushTimer = setTimeout(() => { flushWorkflowWrites(); }, 900);
       setWorkflowSaveState('dirty');
@@ -2520,7 +2523,7 @@
           // Sending is the step's own Send button; these sit to its left. The
           // presentation's own editor and its emailed link are under More.
           return [
-            { id: 'edit_manually', label: 'Edit manually', icon: 'fa-pen-ruler', quiet: true, title: 'Open the finished document in the editor to change it by hand', run: () => openAsSentEditor() },
+            { id: 'edit_manually', label: 'Edit manually', icon: 'fa-pen-ruler', quiet: true, title: 'Open this document in the document editor to change it by hand', run: () => openFullEditor() },
             canPresent(options) ? { id: 'present', label: 'Present', icon: 'fa-chalkboard-user', title: 'Present this estimate to the customer', run: () => openPresentation() } : null
           ].filter(Boolean);
         },
@@ -2667,6 +2670,41 @@
       });
     }
 
+    /**
+     * The preview as it is typed (GP-168): the answers typed since the last server resolve, resolved in the browser
+     * into the template with that resolve's scope, so the words show at once; the server's resolve follows as before.
+     * Only plain answers (text, content blocks) are drawn this way, and only when every calculated value comes out as
+     * the server had it: a figure the browser computed is never shown (AGENTS.md, "Editing documents as sent"). Null
+     * when it cannot be drawn here; the preview then waits for the server.
+     */
+    function localWorkflowPreview(){
+      const FM = window.FMDocModel;
+      const last = objectValue(state.previewLast), scope = objectValue(last.scope), working = objectValue(state.working);
+      if (!state.previewTyped.size || typeof FM?.resolveBindings !== 'function' || !objectValue(scope.params) || working.fromTemplate !== true || !working.definition) return null;
+      const plain = (value) => typeof value === 'string' || (Array.isArray(value) && value.every((row) => row && typeof row === 'object' && 'body' in row));
+      if (![...state.previewTyped.values()].every(plain)) return null;
+      try {
+        const next = clone(scope);
+        next.params = clone(objectValue(scope.params));
+        state.previewTyped.forEach((value, key) => setDeepValue(next.params, key, clone(value)));
+        const resolved = FM.resolveBindings(clone(working.definition), next);
+        const computed = (definition) => JSON.stringify(objectValue(objectValue(definition).computed_values));
+        if (computed(resolved) !== computed(last.resolved_definition)) return null;
+        // Pictures load from the same addresses the server gives them, so the preview keeps the ones it has.
+        const attach = (media) => { if (media && typeof media === 'object' && !cleanText(media.url) && firstText(media.media_id, media.mediaId)) media.url = `/v1/platform/organizations/${encodeURIComponent(orgId())}/media/${encodeURIComponent(firstText(media.media_id, media.mediaId))}/file?variant=${encodeURIComponent(firstText(media.variant, 'original'))}`; };
+        const visit = (node) => {
+          if (!node || typeof node !== 'object') return;
+          if (cleanText(node.type) === 'image') attach(objectValue(node.props).media);
+          if (cleanText(objectValue(objectValue(node.style).fill).type) === 'image') attach(objectValue(objectValue(node.style).fill).media);
+          arrayValue(node.children).forEach(visit);
+        };
+        arrayValue(resolved.pages).forEach(visit);
+        return { ...last, resolved_definition: resolved };
+      } catch (error) {
+        return null;
+      }
+    }
+
     /** Mounts the stepper runtime into the unified screen's workflow host.
      *  Anything missing (runtime, record, host) falls back to editor view. */
     async function mountWorkflowHost(){
@@ -2684,6 +2722,12 @@
       }
       destroyWorkflowView();
       state.workflowWrites = { params: {}, outputs: {} };
+      state.previewTyped = new Map();
+      state.previewLast = null;
+      // The template the local preview resolves typed answers into (localWorkflowPreview), read once in the background.
+      if (!objectValue(state.working).definition && !isReadOnlyStatus(doc.status)) {
+        instanceWorkingDefinition().then((working) => { if (cleanText(state.doc?.id) === cleanText(doc.id) && !objectValue(state.working).definition) state.working = working; }).catch(() => {});
+      }
       try {
         state.workflowHandle = runtime.mount(host, {
           workflow: record.definition,
@@ -2709,12 +2753,17 @@
           },
           preview: {
             resolve: async () => {
+              const typed = new Map(state.previewTyped);
               await flushWorkflowWrites();
               const payload = await api().documents.resolve(orgId(), state.doc.id);
               // Rail doc card rides the same resolve: live total for free.
               if (captureResolvedTotal(payload)) updateDocCardTotal();
+              // Answers this resolve saw are the server's now; one typed since stays for the local preview.
+              typed.forEach((value, key) => { if (state.previewTyped.get(key) === value) state.previewTyped.delete(key); });
+              state.previewLast = objectValue(payload);
               return payload;
-            }
+            },
+            local: () => localWorkflowPreview()
           },
           services: workflowServices(),
           // What the host adds to the runtime (the document setup: phone steps at the bottom, the step's title in its
@@ -2996,13 +3045,20 @@
         const guides = typeof guidesRuntime === 'function' ? guidesRuntime() : null;
         return guides && guides.experience?.('documents.setup') ? guides : null;
       }
-      /** Opens the documents setup at its proposal questions; false when it cannot be played here. */
+      /**
+       * Opens the documents setup at its proposal questions; false when it cannot be played here. The setup makes the
+       * first proposal itself, so a host's return (Ops' quick start) belongs to the setup: it runs once the setup ends.
+       */
       function startProposalSetup(){
         const guides = setupGuides();
         if (!guides) return false;
+        const back = ret && state.returnTo === ret ? ret : null;
+        // Closing the wizard hands the person on without returning them (its close drops the unarmed return).
         modal.close();
         // A proposal, asked afresh: an earlier run's kinds of proposal (insurance only) are not carried in.
-        guides.play('documents.setup', { replay: true, start: 'proposal_kinds', selections: { document_kind: 'proposal', proposal_kinds: undefined } }).catch(() => null);
+        guides.play('documents.setup', { replay: true, start: 'proposal_kinds', selections: { document_kind: 'proposal', proposal_kinds: undefined } })
+          .catch(() => null)
+          .then(() => { try { back?.onFinish(null); } catch (error) { console.warn('Returning from the documents setup failed', error); } });
         return true;
       }
       /** The library's one Proposal, standing for its proposals until the organization sets up its own. */
@@ -3395,6 +3451,9 @@
       if (wizard.type) {
         const ofType = activeTemplates().filter((tpl) => cleanText(tpl.document_type) === wizard.type && !isUploadTemplate(tpl));
         wizard.template = ofType.find((tpl) => objectValue(tpl.metadata).default === true) || ofType[0] || null;
+        // A proposal asked for by type (Ops' Create proposal, a doc-first New Proposal) goes through the same gate as the
+        // picker's Proposal (GP-159): while the organization has none of its own, how they write proposals comes first.
+        if (wizard.template && isLibraryProposal(wizard.template) && proposalsUnused() && startProposalSetup()) return;
         proceed();
       } else renderStepOne();
       // The fresh copy redraws the first step if it changed anything, keeping what the person picked, searched and saved.
@@ -5184,7 +5243,9 @@
       const panel = root.querySelector('[data-fmdx-data-panel]');
       if (!panel) return;
       let offset = 0;
-      if (state.docView === 'editor') {
+      // Only a tray laid over the editor (narrow screens) can cover its toolbar;
+      // beside it, an offset is just a gap above Setup / Agent (GP-169).
+      if (state.docView === 'editor' && getComputedStyle(panel).position === 'absolute') {
         try {
           const toolbar = root.querySelector('[data-fmdx-canvas] .fmde-toolbar');
           if (toolbar) offset = Math.round(toolbar.getBoundingClientRect().height);
@@ -5689,52 +5750,15 @@
     }
 
     /**
-     * "Edit manually": the document exactly as it will be sent (FMDocSentEditor,
-     * docs/architecture/document-as-sent-editing.md). Values from the data
-     * write the data and other text is saved as a text override, both through
-     * POST /as-sent (patchDocumentInstance), so each is a document revision.
+     * "Edit manually": the full document editor (the one Doc Studio uses), for
+     * every organization; the Doc Studio flag only hides the global tab.
+     * Back returns to the steps (docBackDepth).
      */
-    async function openAsSentEditor(){
+    async function openFullEditor(){
       if (!state.doc?.id) return;
-      if (!window.FMDocSentEditor?.open) { setDocView('editor'); return; }
-      await flushAllWrites();
-      const traced = async () => objectValue(await api().documents.resolve(orgId(), state.doc.id, { trace: true }));
-      // Both kinds of edit are one server call each, saved as a document revision.
-      const save = async (body) => {
-        const res = objectValue(await api().documents.editAsSent(orgId(), state.doc.id, body));
-        const updated = objectValue(res.document);
-        if (updated.id) {
-          state.doc = { ...state.doc, ...updated };
-          state.baseOverrides = arrayValue(updated.overrides).map((op) => clone(op));
-        }
-        return res;
-      };
-      const editor = window.FMDocSentEditor.open({
-        title: firstText(state.doc.title, 'Document'),
-        themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding) },
-        load: traced,
-        writeInputs: (writes) => save({ writes }),
-        setTextOverride: async (nodeId, blocks, base) => {
-          await flushAutosave();
-          return save({ text: { node_id: nodeId, blocks, base } });
-        },
-        actions: [
-          { id: 'layout', label: 'Edit layout', icon: 'fa-object-group', title: 'Open the template layout editor for this document', run: async (editor) => { await editor.close(); setDocView('editor'); } },
-          { id: 'pdf', label: 'Download PDF', icon: 'fa-download', run: () => downloadPdf(state.doc, null) },
-          { id: 'done', label: 'Done', icon: 'fa-check', primary: true, run: (editor) => editor.close() }
-        ],
-        onClose: (changed) => {
-          if (state.sentEditor === editor) state.sentEditor = null;
-          syncBack();
-          if (!changed) return;
-          state.workflowTouched = true; // the template editor re-resolves on its next open
-          try { state.workflowHandle?.refresh?.({ params: clone(objectValue(state.doc?.params)), outputs: clone(objectValue(state.doc?.outputs)) }); } catch (e) {}
-          try { state.workflowHandle?.refreshPreview?.(); } catch (e) {}
-          renderDocCard();
-        }
-      });
-      state.sentEditor = editor || null;
-      syncBack();
+      // Straight onto the page: the Setup / Agent tray starts closed here.
+      if (state.dataPanelOpen) setDataPanelOpen(false);
+      await setDocView('editor');
     }
 
     // ================================================================= pdf

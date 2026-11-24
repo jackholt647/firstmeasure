@@ -1009,13 +1009,19 @@ and reads `workforce-setup.status` when it shows (the steps before it may have j
 3. **Name each one and say what they do.** One card each: its name, which of the company's services it does (all of
    them at first; **Other** searches `company-profile.catalog` for one the profile left out, which the save adds to
    the profile), its **specialties** within each service in the company's own words (offered from the step's
-   `service_tags`, library data, and the ones its other crews and subcontractors already have, or typed in), and, for
+   `service_tags`, library data, and the ones its other crews and subcontractors already have, or typed in; GP-161: one
+   short row per service, its picked specialties under it and **+ Specialties** opening the rest, one row at a time), and, for
    a crew, who is on it (optional): a dropdown of the organization's people with **New crew member** at its bottom
    (name and email; added with `workforce.users.add` when the setup is saved, only for someone with People's
    permission) and, with two or more on it, a flag for the one in charge (the group's lead).
 4. **How do you pay them?** Piece rate, hourly or per job, defaulted by the step's `pay_defaults` (library data: the first
-   rule whose `industry_sets` the company is in; roofing and exteriors are paid per square, everyone else hourly; a
-   piece rate needs roofing work); "Same pay as" another card copies its pay; **Upload pay sheet** saves the card and
+   rule whose `industry_sets` the company is in; roofing and exteriors are paid by piece rate, everyone else hourly; a
+   piece rate needs roofing work). A piece rate is items (GP-162, `labor/labor-setup.ts` `pieceSheet`): **Squares**
+   are one rate for each pitch range (the rule's `items`, library data; by default up to 2/12, to 8/12, to 12/12 and
+   over), split or joined at the dictionary's pitch bands, and said to replace each other; or **One rate** for every
+   square. **Added on top** are a bonus for squares over a pitch (shown as what such a square earns: "$65 + $2 = $67")
+   and a rate per unit of any other roofing measurement. Pitch ranges are all rated or none; a sheet the setup did not
+   write line for line stays People's. "Same pay as" another card copies its pay; **Upload pay sheet** saves the card and
    hands the file to the agent, which the modal setup calls in beside itself (the player's `ensureAgent`).
 5. **Invite your crews to the app?** (GP-66) Only when a crew has someone who has not joined yet and the person may
    invite (People's permission). **Not now** saves the setup; **Yes** goes on to
@@ -1028,7 +1034,8 @@ and reads `workforce-setup.status` when it shows (the steps before it may have j
 7. **Set up**, after `operations.workforce.setup.apply` wrote it; Done finishes the setup. There is no price book finish
    (`completion.screen: none`, no completion action).
 
-Cards sit side by side, three at most; more scroll as a carousel that shows three and part of the card before and
+Every page's Back, Continue and Save sit on a bar pinned to the bottom of the sheet (GP-161): a long page scrolls
+under it, a short one keeps it at the bottom. Cards sit side by side, three at most; more scroll as a carousel that shows three and part of the card before and
 after (three and a half card widths), and on a phone one card with its neighbours peeking in. The save is
 `labor.setup.apply` with each card's `service_ids` and `service_tags` (written as its capabilities,
 `assignees.capabilities.save`, so a service measured as a kind of work grants that kind's items; the specialties grant
