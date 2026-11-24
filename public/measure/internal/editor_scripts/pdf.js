@@ -10,6 +10,18 @@ function pdfMaterialUnit(unit) { const kind=pdfMaterialKind(unit); return kind ?
 function pdfMaterialAmount(n,unit,legacy) { const kind=pdfMaterialKind(unit); return kind ? pdfMeasure(n,kind,legacy,false) : legacy; }
 /** A roof pitch in the project's notation (1M8-255): 6/12, or 26.6° for degree projects; other text is unchanged. */
 function pdfPitch(pitch, digits = 1) { return window.ReportUnits?.current?.()?.pitch?.(pitch, digits) ?? pitch; }
+/* Montserrat has no Greek letters, and jsPDF prints nothing for a glyph its font lacks, so a Greek report lost its
+   legend, page titles and most labels (FM-632). A report in Greek, or whose address is written in Greek, is set in
+   Noto Sans (Latin, Greek and Cyrillic) instead; it is registered as the report's "Montserrat" family, so every
+   setFont('Montserrat', ...) here and in exterior_pdf.js draws with it. */
+function pdfReportFontFiles(language, texts = []) {
+    const greek = /^el\b/i.test(String(language || '')) || texts.some(text => /[\u0370-\u03ff\u1f00-\u1fff]/.test(String(text || '')));
+    return greek
+        ? { regular: 'NotoSans-Regular.ttf', bold: 'NotoSans-Bold.ttf' }
+        : { regular: 'Montserrat-Regular.ttf', bold: 'Montserrat-Bold.ttf' };
+}
+// Capitals in the report language: Greek capitals drop their accents (ΑΝΑΛΥΣΗ, not ΑΝΆΛΥΣΗ).
+function pdfUpper(text) { return String(text).toLocaleUpperCase(window.ReportUnits?.current?.().language || 'en-US'); }
 function pdfLabel(text, values = {}) { return window.ReportUnits?.current().label(text, values) ?? text.replace(/\{(\w+)\}/g, (all, key) => Object.hasOwn(values, key) ? String(values[key]) : all); }
 // A line type's name in the report language. Look the name up itself: passed as a {value} it stays English (FM-390).
 function pdfLineTypeLabel(typeId) { return pdfLabel(formatLineType(typeId)); }
@@ -2251,9 +2263,15 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
                 : logoData);
     }
 
-    const [fontRegular, fontBold, logoData] = await Promise.all([
-        fetchAssetAsBase64('/fonts/Montserrat-Regular.ttf'),
-        fetchAssetAsBase64('/fonts/Montserrat-Bold.ttf'),
+    const fontFiles = pdfReportFontFiles(window.ReportUnits?.current?.().language, [state.address]);
+    const fetchFonts = files => Promise.all([fetchAssetAsBase64('/fonts/' + files.regular), fetchAssetAsBase64('/fonts/' + files.bold)]);
+    const [[fontRegular, fontBold], logoData] = await Promise.all([
+        // A host that cannot serve the Greek font yet still renders the report, as before.
+        fetchFonts(fontFiles).catch(error => {
+            if (fontFiles.regular === 'Montserrat-Regular.ttf') throw error;
+            console.warn('[PDF] Report font unavailable, using Montserrat', error);
+            return fetchFonts(pdfReportFontFiles('en-US'));
+        }),
         logoDataPromise
     ]);
 
@@ -3117,7 +3135,7 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h, options = {}) {
             doc.setFontSize(9);
             doc.setTextColor(150); 
             doc.setFont("Montserrat", "bold");
-            doc.text(pdfLabel(title).toUpperCase(), bx + 8, by + 7);
+            doc.text(pdfUpper(pdfLabel(title)), bx + 8, by + 7);
         }
     };
 
@@ -8882,7 +8900,7 @@ function drawSummaryBox(doc, bx, by, bw, bh, title, opts = {}) {
         doc.setFontSize(9);
         doc.setTextColor(150);
         doc.setFont("Montserrat", "bold");
-        doc.text(pdfLabel(String(title)).toUpperCase(), bx + pad, by + 8);
+        doc.text(pdfUpper(pdfLabel(String(title))), bx + pad, by + 8);
     }
 
     // Reset
