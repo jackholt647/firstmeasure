@@ -19,15 +19,19 @@ function dropEmptyFaces(base){
  const empty=f=>{const ps=f.points||[];if(ps.length<3)return true;let x=0,y=0,z=0;for(let i=0;i<ps.length;i++){const a=ps[i],b=ps[(i+1)%ps.length];x+=(a.y-b.y)*(a.z+b.z);y+=(a.z-b.z)*(a.x+b.x);z+=(a.x-b.x)*(a.y+b.y);}return !(Math.hypot(x,y,z)/2>1e-10);};
  if(!base?.faces?.some(empty)||base.faces.every(empty))return false;base.faces=base.faces.filter(f=>!empty(f));return true;
 }
-// A corner where the outline runs out and straight back along itself (a spike of no width) encloses nothing, but
-// the triangulator cannot resolve it: the base could not be drawn and wall mode stayed blank on every open. A wall
-// pushed in beside a wall a fraction of a degree off square left a hair-thin sliver, and the point weld folded it
-// flat onto that wall (FM-636). The spike's corner goes, with the line out to it if nothing else uses that corner.
+// A corner where the outline runs out and straight back along itself (a spike of no width) encloses nothing. Most
+// such outlines still draw (a legacy wall perimeter keeps its corner tails), but one can leave the triangulator
+// unable to resolve it: the base could not be drawn and wall mode stayed blank on every open. A wall pushed in beside
+// a wall a fraction of a degree off square left a hair-thin sliver, and the point weld folded it flat onto that wall
+// (FM-636). Only in a face that cannot be drawn, the spike's corner goes, with the line out to it if nothing else
+// uses that corner.
 function dropSpikes(base){
  if(!base?.faces?.length)return false;const removed=new Set();let changed=false;
- const clean=ring=>{for(let again=true;again&&ring.length>3;){again=false;for(let i=0;i<ring.length;i++){const a=ring[(i+ring.length-1)%ring.length],b=ring[i],c=ring[(i+1)%ring.length],ab=dist(a,b),bc=dist(b,c);
-  if(ab>1e-9&&bc>1e-9&&Math.abs(cross(a,b,c))/Math.max(ab,bc)<1e-6&&(a.x-b.x)*(c.x-b.x)+(a.y-b.y)*(c.y-b.y)>0){if(b.nodeId)removed.add(b.nodeId);ring.splice(i,1);changed=again=true;break;}}}};
- for(const f of base.faces)if(!f.curves?.length){clean(f.points);(f.holes||[]).forEach(clean);}
+ const drawable=f=>{try{K.triangles(f.points,f.holes||[]);return true;}catch(e){return false;}};
+ const clean=(ring,gone)=>{for(let again=true;again&&ring.length>3;){again=false;for(let i=0;i<ring.length;i++){const a=ring[(i+ring.length-1)%ring.length],b=ring[i],c=ring[(i+1)%ring.length],ab=dist(a,b),bc=dist(b,c);
+  if(ab>1e-9&&bc>1e-9&&Math.abs(cross(a,b,c))/Math.max(ab,bc)<1e-6&&(a.x-b.x)*(c.x-b.x)+(a.y-b.y)*(c.y-b.y)>0){gone.push(b);ring.splice(i,1);again=true;break;}}}};
+ for(const f of base.faces){if(f.curves?.length||drawable(f))continue;const points=f.points.slice(),holes=(f.holes||[]).map(r=>r.slice()),gone=[];clean(f.points,gone);(f.holes||[]).forEach(r=>clean(r,gone));
+  if(!gone.length)continue;if(!drawable(f)){f.points=points;if(f.holes)f.holes=holes;continue;}changed=true;for(const p of gone)if(p.nodeId)removed.add(p.nodeId);}
  const s=base.sketch;if(removed.size&&s?.nodes&&s?.edges){const kept=new Set(base.faces.flatMap(f=>[f.points,...(f.holes||[])].flat().map(p=>p.nodeId))),gone=new Set([...removed].filter(id=>!kept.has(id))),degree=id=>s.edges.filter(e=>e.a===id||e.b===id).length;
   s.edges=s.edges.filter(e=>!(e.fixed&&[e.a,e.b].some(id=>gone.has(id)&&degree(id)===1)));s.nodes=s.nodes.filter(n=>!gone.has(n.id)||s.edges.some(e=>e.a===n.id||e.b===n.id));}
  return changed;
