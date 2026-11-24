@@ -125,12 +125,9 @@
       "message": "FirstMate の残高に {amount} クレジットが追加されました。屋根レポートの料金はこの残高から差し引かれます。再度チャージするまで追加の請求はありません。",
       "format": "icu"
     },
-    "stripe_line_credits": "屋根計測クレジット",
-    "stripe_line_credits_bonus": "期間限定ボーナス付き屋根計測クレジット",
-    "stripe_line_added": {
-      "message": "FirstMate アカウントに {amount} を追加しました",
-      "format": "icu"
-    },
+    "stripe_line_credits": "FirstMate クレジット",
+    "stripe_line_credits_bonus": "期間限定ボーナス付き FirstMate クレジット",
+    "stripe_line_description": "FirstMate クレジット",
     "stripe_line_bonus": {
       "message": "{paid} 購入 + 期間限定ボーナス {bonus}（{percent}% ボーナス）= アカウントに {total} を追加",
       "format": "icu"

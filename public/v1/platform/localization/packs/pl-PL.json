@@ -125,12 +125,9 @@
       "message": "Do Twojego salda FirstMate dodano kredyty: {amount}. Raporty dachowe są opłacane z tego salda; nie zostaniesz ponownie obciążony, dopóki nie doładujesz konta.",
       "format": "icu"
     },
-    "stripe_line_credits": "Środki na pomiary dachów",
-    "stripe_line_credits_bonus": "Środki na pomiary dachów z bonusem ograniczonym czasowo",
-    "stripe_line_added": {
-      "message": "Dodano do Twojego konta FirstMate: {amount}",
-      "format": "icu"
-    },
+    "stripe_line_credits": "Kredyt FirstMate",
+    "stripe_line_credits_bonus": "Kredyty FirstMate z bonusem ograniczonym czasowo",
+    "stripe_line_description": "Kredyty FirstMate",
     "stripe_line_bonus": {
       "message": "Zakupiono {paid} + bonus ograniczony czasowo {bonus} (bonus {percent}%) = do Twojego konta dodano {total}",
       "format": "icu"

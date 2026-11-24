@@ -36,10 +36,28 @@ test("FM-622: the receipt description is in the organization's language", async 
     assert.match(text, /FirstMate/, locale);
   }
   const line = await stripeCreditLineItem({ paid: 50, bonus: 0, total: 50, matchPercent: 0, bonusOffer: false, vatIncluded: true }, EURO, "fr-FR");
-  assert.equal(line.name, "Crédits de métré de toiture");
-  assert.match(line.description, /^50\s€ ajoutés à votre compte FirstMate\. TVA incluse\.$/);
+  assert.equal(line.name, "Crédit FirstMate");
+  assert.equal(line.description, "Crédits FirstMate. TVA incluse.");
   const english = await stripeCreditLineItem({ paid: 100, bonus: 50, total: 150, matchPercent: 50, bonusOffer: true, vatIncluded: false });
-  assert.deepEqual(english, { name: "Roof Measurement Credits With Limited-Time Bonus", description: "$100 purchased + $50 limited-time bonus (50% bonus) = $150 added to your account" });
+  assert.deepEqual(english, { name: "FirstMate Credits With Limited-Time Bonus", description: "$100 purchased + $50 limited-time bonus (50% bonus) = $150 added to your account" });
+});
+
+test("FM-634: Checkout says FirstMate credit, never roof measurement credit, in every language and currency", async () => {
+  assert.deepEqual(
+    await stripeCreditLineItem({ paid: 250, bonus: 0, total: 250, matchPercent: 0, bonusOffer: false, vatIncluded: false }),
+    { name: "FirstMate Credit", description: "FirstMate Credits" }
+  );
+  for (const locale of SUPPORTED_LOCALES) {
+    for (const bonusOffer of [false, true]) {
+      const line = await stripeCreditLineItem({ paid: 100, bonus: bonusOffer ? 50 : 0, total: bonusOffer ? 150 : 100, matchPercent: bonusOffer ? 50 : 0, bonusOffer, vatIncluded: false }, EURO, locale);
+      assert.match(line.name, /FirstMate/, `${locale} name`);
+      assert.doesNotMatch(`${line.name} ${line.description}`, /roof|toit|dach|tejad|telhad|tetto|屋根/i, `${locale} ${line.name}`);
+    }
+  }
+  // Every checkout builds its own line item: a fixed Stripe price shows the dashboard product's old name.
+  const platformSource = await readFile(path.resolve(process.cwd(), "platform/api.ts"), "utf8");
+  assert.doesNotMatch(platformSource, /line_items\[0\]\[price\]"/);
+  assert.match(platformSource, /"line_items\[0\]\[price_data\]\[product_data\]\[name\]"\] = lineItem\.name/);
 });
 
 test("FM-622: our languages map to Stripe's Checkout and receipt languages", () => {

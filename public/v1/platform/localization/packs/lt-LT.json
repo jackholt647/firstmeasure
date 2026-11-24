@@ -125,12 +125,9 @@
       "message": "Į jūsų FirstMate likutį įskaityta kreditų: {amount}. Stogo ataskaitos apmokamos iš šio likučio; daugiau mokesčio nebus nuskaityta, kol nepapildysite likučio.",
       "format": "icu"
     },
-    "stripe_line_credits": "Stogo matavimų kreditai",
-    "stripe_line_credits_bonus": "Stogo matavimų kreditai su ribotos trukmės premija",
-    "stripe_line_added": {
-      "message": "Į jūsų FirstMate paskyrą įskaityta: {amount}",
-      "format": "icu"
-    },
+    "stripe_line_credits": "FirstMate kreditas",
+    "stripe_line_credits_bonus": "FirstMate kreditai su ribotos trukmės premija",
+    "stripe_line_description": "FirstMate kreditai",
     "stripe_line_bonus": {
       "message": "Nupirkta {paid} + ribotos trukmės premija {bonus} ({percent} % premija) = į jūsų paskyrą įskaityta {total}",
       "format": "icu"

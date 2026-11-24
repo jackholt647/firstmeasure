@@ -125,12 +125,9 @@
       "message": "{amount} créditos añadidos a tu saldo de FirstMate. Los informes de tejado se descuentan de este saldo; no se te volverá a cobrar hasta que recargues.",
       "format": "icu"
     },
-    "stripe_line_credits": "Créditos de medición de tejados",
-    "stripe_line_credits_bonus": "Créditos de medición de tejados con bonificación por tiempo limitado",
-    "stripe_line_added": {
-      "message": "{amount} añadidos a tu cuenta de FirstMate",
-      "format": "icu"
-    },
+    "stripe_line_credits": "Crédito de FirstMate",
+    "stripe_line_credits_bonus": "Créditos de FirstMate con bonificación por tiempo limitado",
+    "stripe_line_description": "Créditos de FirstMate",
     "stripe_line_bonus": {
       "message": "{paid} comprados + {bonus} de bonificación por tiempo limitado ({percent} % de bonificación) = {total} añadidos a tu cuenta",
       "format": "icu"

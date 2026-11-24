@@ -125,12 +125,9 @@
       "message": "Προστέθηκαν {amount} μονάδες στο υπόλοιπο FirstMate σας. Οι αναφορές στέγης χρεώνονται από αυτό το υπόλοιπο· δεν θα χρεωθείτε ξανά μέχρι να κάνετε νέα φόρτιση.",
       "format": "icu"
     },
-    "stripe_line_credits": "Μονάδες για μετρήσεις στέγης",
-    "stripe_line_credits_bonus": "Μονάδες για μετρήσεις στέγης με μπόνους περιορισμένου χρόνου",
-    "stripe_line_added": {
-      "message": "Προστέθηκαν {amount} στον λογαριασμό σας FirstMate",
-      "format": "icu"
-    },
+    "stripe_line_credits": "Μονάδα FirstMate",
+    "stripe_line_credits_bonus": "Μονάδες FirstMate με μπόνους περιορισμένου χρόνου",
+    "stripe_line_description": "Μονάδες FirstMate",
     "stripe_line_bonus": {
       "message": "Αγορά {paid} + μπόνους περιορισμένου χρόνου {bonus} (μπόνους {percent}%) = προστέθηκαν {total} στον λογαριασμό σας",
       "format": "icu"

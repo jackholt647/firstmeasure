@@ -125,12 +125,9 @@
       "message": "{amount} credits toegevoegd aan uw FirstMate-saldo. Dakrapporten worden van dit saldo afgeschreven; u betaalt pas weer als u opwaardeert.",
       "format": "icu"
     },
-    "stripe_line_credits": "Tegoed voor dakmetingen",
-    "stripe_line_credits_bonus": "Tegoed voor dakmetingen met tijdelijke bonus",
-    "stripe_line_added": {
-      "message": "{amount} toegevoegd aan uw FirstMate-account",
-      "format": "icu"
-    },
+    "stripe_line_credits": "FirstMate-credit",
+    "stripe_line_credits_bonus": "FirstMate-credits met tijdelijke bonus",
+    "stripe_line_description": "FirstMate-credits",
     "stripe_line_bonus": {
       "message": "{paid} gekocht + {bonus} tijdelijke bonus ({percent}% bonus) = {total} toegevoegd aan uw account",
       "format": "icu"

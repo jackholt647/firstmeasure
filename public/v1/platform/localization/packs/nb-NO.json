@@ -125,12 +125,9 @@
       "message": "{amount} kreditter er lagt til i FirstMate-saldoen din. Takrapporter trekkes fra denne saldoen; du blir ikke belastet igjen før du fyller på.",
       "format": "icu"
     },
-    "stripe_line_credits": "Kreditter for takmåling",
-    "stripe_line_credits_bonus": "Kreditter for takmåling med tidsbegrenset bonus",
-    "stripe_line_added": {
-      "message": "{amount} lagt til i FirstMate-kontoen din",
-      "format": "icu"
-    },
+    "stripe_line_credits": "FirstMate-kreditt",
+    "stripe_line_credits_bonus": "FirstMate-kreditter med tidsbegrenset bonus",
+    "stripe_line_description": "FirstMate-kreditter",
     "stripe_line_bonus": {
       "message": "{paid} kjøpt + {bonus} tidsbegrenset bonus ({percent} % bonus) = {total} lagt til i kontoen din",
       "format": "icu"

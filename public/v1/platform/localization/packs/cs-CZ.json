@@ -125,12 +125,9 @@
       "message": "Na váš zůstatek FirstMate byly připsány kredity: {amount}. Střešní reporty se hradí z tohoto zůstatku; další platba vám bude stržena až při dobití.",
       "format": "icu"
     },
-    "stripe_line_credits": "Kredit na zaměření střech",
-    "stripe_line_credits_bonus": "Kredit na zaměření střech s časově omezeným bonusem",
-    "stripe_line_added": {
-      "message": "Připsáno na váš účet FirstMate: {amount}",
-      "format": "icu"
-    },
+    "stripe_line_credits": "Kredit FirstMate",
+    "stripe_line_credits_bonus": "Kredity FirstMate s časově omezeným bonusem",
+    "stripe_line_description": "Kredity FirstMate",
     "stripe_line_bonus": {
       "message": "Zakoupeno {paid} + časově omezený bonus {bonus} (bonus {percent} %) = na váš účet připsáno {total}",
       "format": "icu"

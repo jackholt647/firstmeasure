@@ -90,7 +90,7 @@ test("credit checkout locks integration currency, preserves presentment details 
       const stripeLanguage=country==="FR"?"fr":"ja",french=country==="FR";
       assert.equal(fields.get("locale"),stripeLanguage);
       assert.match(fields.get("payment_intent_data[description]"),french?/de crédit ajoutés à votre solde FirstMate/:/FirstMate の残高に/);
-      assert.match(fields.get("line_items[0][price_data][product_data][name]"),french?/^Crédits de métré de toiture$/:/^屋根計測クレジット$/);
+      assert.match(fields.get("line_items[0][price_data][product_data][name]"),french?/^Crédit FirstMate$/:/^FirstMate クレジット$/);
       assert.equal(calls.filter(c=>c.url==="/v1/customers").at(-1).fields.get("preferred_locales[0]"),stripeLanguage);
       const session=sessions.get(created.session.id),currency=session.currency;session.currency="gbp";
       assert.equal((await c.request("POST","/v1/platform/portal-action",{action:"stripe_fulfill_session",session_id:session.id})).success,false);
@@ -106,6 +106,15 @@ test("credit checkout locks integration currency, preserves presentment details 
       assert.match(pi.get("description"),french?/^50\s€ de crédit ajoutés/:/^FirstMate の残高に €50 分/);
       assert.equal(calls.filter(c=>c.url==="/v1/customers/cus_regional").at(-1).fields.get("preferred_locales[0]"),stripeLanguage);
     }
+    // FM-634: a US checkout names its own line item too; a fixed Stripe price showed "Roof Measurement Credit".
+    const us=await accounts.get("US").request("POST","/v1/platform/portal-action",{action:"stripe_create_checkout",qty:250});assert.equal(us.success,true,JSON.stringify(us));
+    const usFields=calls.filter(c=>c.url==="/v1/checkout/sessions").at(-1).fields;
+    assert.equal(usFields.get("line_items[0][price]"),null);
+    assert.equal(usFields.get("line_items[0][price_data][currency]"),"usd");
+    assert.equal(usFields.get("line_items[0][price_data][unit_amount]"),"100");
+    assert.equal(usFields.get("line_items[0][quantity]"),"250");
+    assert.equal(usFields.get("line_items[0][price_data][product_data][name]"),"FirstMate Credit");
+    assert.equal(usFields.get("line_items[0][price_data][product_data][description]"),"FirstMate Credits");
   }finally{globalThis.fetch=original;}
 });
 

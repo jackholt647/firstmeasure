@@ -125,12 +125,9 @@
       "message": "{amount} créditos adicionados ao seu saldo FirstMate. Os relatórios de telhado são descontados deste saldo; você não será cobrado novamente até recarregar.",
       "format": "icu"
     },
-    "stripe_line_credits": "Créditos de medição de telhado",
-    "stripe_line_credits_bonus": "Créditos de medição de telhado com bônus por tempo limitado",
-    "stripe_line_added": {
-      "message": "{amount} adicionados à sua conta FirstMate",
-      "format": "icu"
-    },
+    "stripe_line_credits": "Crédito FirstMate",
+    "stripe_line_credits_bonus": "Créditos FirstMate com bônus por tempo limitado",
+    "stripe_line_description": "Créditos FirstMate",
     "stripe_line_bonus": {
       "message": "{paid} comprados + {bonus} de bônus por tempo limitado ({percent}% de bônus) = {total} adicionados à sua conta",
       "format": "icu"

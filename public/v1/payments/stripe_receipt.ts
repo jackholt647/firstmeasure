@@ -51,17 +51,20 @@ export async function stripeCreditReceiptDescription(creditDollars: number, prof
     : language.text("billing", "stripe_receipt_credits_currency", `${amount} in credits added to your FirstMate balance. Roof reports come out of this balance; you won't be charged again until you reload.`, { amount });
 }
 
-/** The Checkout line item for credits bought without a Stripe price (outside USD, or with a bonus offer). */
+/**
+ * The Checkout line item for every credit purchase. FM-634: Checkout shows this name and description, never a
+ * Stripe dashboard product's (the old fixed USD price said "Roof Measurement Credit").
+ */
 export async function stripeCreditLineItem(input: { paid: number; bonus: number; total: number; matchPercent: number; bonusOffer: boolean; vatIncluded: boolean }, profile: CommercialProfile = currentProfile(), locale = "en-US") {
   const language = await billingLanguage(locale);
   const money = (value: number) => stripeCreditAmount(value, profile, locale);
   const name = input.bonusOffer
-    ? language.text("billing", "stripe_line_credits_bonus", "Roof Measurement Credits With Limited-Time Bonus")
-    : language.text("billing", "stripe_line_credits", "Roof Measurement Credits");
+    ? language.text("billing", "stripe_line_credits_bonus", "FirstMate Credits With Limited-Time Bonus")
+    : language.text("billing", "stripe_line_credits", "FirstMate Credit");
   const percent = new Intl.NumberFormat(supportedLocale(locale), { maximumFractionDigits: 2 }).format(input.matchPercent);
   const description = input.bonusOffer
     ? language.text("billing", "stripe_line_bonus", `${money(input.paid)} purchased + ${money(input.bonus)} limited-time bonus (${percent}% bonus) = ${money(input.total)} added to your account`, { paid: money(input.paid), bonus: money(input.bonus), percent, total: money(input.total) })
-    : language.text("billing", "stripe_line_added", `${money(input.total)} added to your FirstMate account`, { amount: money(input.total) });
+    : language.text("billing", "stripe_line_description", "FirstMate Credits");
   // Outside the US and Canada the charged amount includes VAT (commercial policy international_prices.vat_included).
   return { name, description: input.vatIncluded ? language.text("billing", "stripe_line_with_vat", `${description}. VAT included.`, { description }) : description };
 }

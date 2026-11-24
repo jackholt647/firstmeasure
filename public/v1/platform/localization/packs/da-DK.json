@@ -125,12 +125,9 @@
       "message": "{amount} kreditter tilføjet til din FirstMate-saldo. Tagrapporter trækkes fra denne saldo; du bliver ikke opkrævet igen, før du fylder op.",
       "format": "icu"
     },
-    "stripe_line_credits": "Kreditter til tagopmåling",
-    "stripe_line_credits_bonus": "Kreditter til tagopmåling med tidsbegrænset bonus",
-    "stripe_line_added": {
-      "message": "{amount} tilføjet til din FirstMate-konto",
-      "format": "icu"
-    },
+    "stripe_line_credits": "FirstMate-kredit",
+    "stripe_line_credits_bonus": "FirstMate-kreditter med tidsbegrænset bonus",
+    "stripe_line_description": "FirstMate-kreditter",
     "stripe_line_bonus": {
       "message": "{paid} købt + {bonus} tidsbegrænset bonus ({percent} % bonus) = {total} tilføjet til din konto",
       "format": "icu"

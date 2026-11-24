@@ -125,12 +125,9 @@
       "message": "{amount} krediittiä lisätty FirstMate-saldoosi. Kattoraportit veloitetaan tästä saldosta; sinua ei veloiteta uudelleen ennen kuin lataat saldoa.",
       "format": "icu"
     },
-    "stripe_line_credits": "Kattomittauskrediitit",
-    "stripe_line_credits_bonus": "Kattomittauskrediitit ja määräaikainen bonus",
-    "stripe_line_added": {
-      "message": "{amount} lisätty FirstMate-tilillesi",
-      "format": "icu"
-    },
+    "stripe_line_credits": "FirstMate-krediitti",
+    "stripe_line_credits_bonus": "FirstMate-krediitit ja määräaikainen bonus",
+    "stripe_line_description": "FirstMate-krediitit",
     "stripe_line_bonus": {
       "message": "{paid} ostettu + {bonus} määräaikainen bonus ({percent} %:n bonus) = {total} lisätty tilillesi",
       "format": "icu"

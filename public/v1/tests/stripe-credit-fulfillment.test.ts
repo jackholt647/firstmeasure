@@ -38,9 +38,10 @@ before(async () => {
     else if (url.pathname === "/v1/checkout/sessions") {
       const meta = Object.fromEntries([...fields].filter(([k]) => /^metadata\[/.test(k)).map(([k, v]) => [k.slice(9, -1), v]));
       const qty = Number(fields.get("line_items[0][quantity]"));
-      const unit = fields.get("line_items[0][price]") ? control.unitAmount : Number(fields.get("line_items[0][price_data][unit_amount]"));
+      // What Stripe charged per credit (control.unitAmount), whatever the checkout sent: a mismatch must still be caught.
+      const unit = control.unitAmount;
       const subtotal = qty * unit;
-      value = { id: "cs_test_fulfillment_" + (++seq), url: "https://checkout.stripe.com/c/test", mode: "payment", livemode: false, status: "complete", payment_status: "paid", currency: fields.get("line_items[0][price_data][currency]") || "usd", amount_subtotal: subtotal, amount_total: subtotal + control.tax - control.discount, metadata: meta, client_reference_id: meta.user_email, line_price: fields.get("line_items[0][price]") };
+      value = { id: "cs_test_fulfillment_" + (++seq), url: "https://checkout.stripe.com/c/test", mode: "payment", livemode: false, status: "complete", payment_status: "paid", currency: fields.get("line_items[0][price_data][currency]") || "usd", amount_subtotal: subtotal, amount_total: subtotal + control.tax - control.discount, metadata: meta, client_reference_id: meta.user_email, line_price: fields.get("line_items[0][price]"), line_unit_amount: fields.get("line_items[0][price_data][unit_amount]"), line_name: fields.get("line_items[0][price_data][product_data][name]") };
       sessions.set(value.id, value);
     } else if (url.pathname.startsWith("/v1/checkout/sessions/")) value = sessions.get(url.pathname.split("/").at(-1)!);
     else value = { id: "cus_fulfillment", invoice_settings: {} };
@@ -100,13 +101,16 @@ test("amount check accepts configured totals and holds genuine mismatches", () =
   assert.equal(checkStripeCheckoutAmount({ currency: "usd", amount_total: 5000 }, { paid_dollars: "50" }, "USD", 60).accept, true);
 });
 
-test("US Price ID checkout with tax added is credited once", async () => {
+test("US checkout with tax added is credited once", async () => {
   const c = await register("US", "tax@fulfillment.example.test");
   Object.assign(control, { unitAmount: 100, tax: 731, discount: 0 });
   const created = await action(c, { action: "stripe_create_checkout", qty: 90 });
   assert.equal(created.success, true, JSON.stringify(created));
   const session = sessions.get(created.session.id);
-  assert.ok(session.line_price, "US checkout uses the configured Price ID");
+  // FM-634: no fixed Stripe Price (its dashboard product said "Roof Measurement Credit"); our own $1 credit line.
+  assert.equal(session.line_price, null);
+  assert.equal(session.line_unit_amount, "100");
+  assert.equal(session.line_name, "FirstMate Credit");
   assert.equal(session.amount_total, 9731);
   const first = await action(c, { action: "stripe_fulfill_session", session_id: session.id });
   assert.equal(first.success, true, JSON.stringify(first));
@@ -163,7 +167,7 @@ test("a paid checkout queues one TikTok Purchase for the amount actually paid, w
   assert.equal(tiktokRequests.length, before + 1);
 });
 
-test("a Price above the credit value is credited with an operator warning", async () => {
+test("a charge above the credit value is credited with an operator warning", async () => {
   const c = await register("US", "above@fulfillment.example.test");
   Object.assign(control, { unitAmount: 105, tax: 0, discount: 0 });
   const warnings: string[] = [];

@@ -11086,11 +11086,6 @@ function stripeWebhookSecrets() {
   return secrets;
 }
 
-function stripePriceId(bonus = false) {
-  if (bonus) return env.stripeBonusPriceId || (stripeIsTestMode() ? env.stripeTestBonusPriceId : env.stripeLiveBonusPriceId);
-  return env.stripePriceId || (stripeIsTestMode() ? env.stripeTestPriceId : env.stripeLivePriceId);
-}
-
 function stripeReturnBaseUrl(body: JsonObject = {}) {
   const fallback = env.stripeBaseUrl.replace(/\/+$/, "");
   const raw = cleanText(body.return_base_url || body.base_url || env.stripeBaseUrl);
@@ -11270,19 +11265,14 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     if (offerLabel) fields["metadata[offer_label]"] = offerLabel;
     if (matchPercent) fields["metadata[match_percent]"] = matchPercent;
   }
-  const priceId = currentProfile().credit_display === "currency" && currentProfile().currency === "USD" && currentProfile().minor_digits === 2 ? stripePriceId(useBonus) : "";
-  if (priceId && !useBonus) {
-    fields["line_items[0][price]"] = priceId;
-    fields["line_items[0][quantity]"] = qty;
-  } else {
-    const matchPercent = qty > 0 && bonus > 0 ? Math.round((bonus / qty) * 10_000) / 100 : 0;
-    const lineItem = await stripeCreditLineItem({ paid: qty, bonus, total: totalCredit, matchPercent, bonusOffer: useBonus, vatIncluded: reportPricesIncludeVat() }, currentProfile(), locale);
-    fields["line_items[0][price_data][currency]"] = currentProfile().currency.toLowerCase();
-    fields["line_items[0][price_data][unit_amount]"] = String(creditMinorAmount(1));
-    fields["line_items[0][price_data][product_data][name]"] = lineItem.name;
-    fields["line_items[0][price_data][product_data][description]"] = lineItem.description;
-    fields["line_items[0][quantity]"] = qty;
-  }
+  // FM-634: always our own line item. A fixed Stripe price would show its dashboard product's name instead.
+  const lineMatchPercent = qty > 0 && bonus > 0 ? Math.round((bonus / qty) * 10_000) / 100 : 0;
+  const lineItem = await stripeCreditLineItem({ paid: qty, bonus, total: totalCredit, matchPercent: lineMatchPercent, bonusOffer: useBonus, vatIncluded: reportPricesIncludeVat() }, currentProfile(), locale);
+  fields["line_items[0][price_data][currency]"] = currentProfile().currency.toLowerCase();
+  fields["line_items[0][price_data][unit_amount]"] = String(creditMinorAmount(1));
+  fields["line_items[0][price_data][product_data][name]"] = lineItem.name;
+  fields["line_items[0][price_data][product_data][description]"] = lineItem.description;
+  fields["line_items[0][quantity]"] = qty;
   const created = await stripeApiRequest("POST", "/v1/checkout/sessions", fields);
   if (!created.success) return { success: false, error: created.error || "Stripe checkout failed.", stripe: created.stripe || created.data };
   const session = asObject(created.data);

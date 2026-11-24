@@ -120,9 +120,9 @@ test("Stripe credit checkout for a EUR account is in euros and states VAT includ
     assert.equal((await fr.request("POST","/v1/platform/portal-action",{action:"stripe_create_checkout",qty:100})).success,true);
     const eu=calls.at(-1)!;
     assert.equal(eu.get("line_items[0][price_data][currency]"),"eur");assert.equal(eu.get("line_items[0][price_data][unit_amount]"),"100");
-    assert.match(eu.get("line_items[0][price_data][product_data][description]")||"",/€100 added to your FirstMate account\. VAT included\.$/);
+    assert.match(eu.get("line_items[0][price_data][product_data][description]")||"",/^Crédits FirstMate\. TVA incluse\.$/);
     await us.request("POST","/v1/platform/portal-action",{action:"stripe_create_checkout",qty:100});
-    assert.doesNotMatch(calls.at(-1)!.get("line_items[0][price_data][product_data][description]")||"",/VAT/);
+    assert.equal(calls.at(-1)!.get("line_items[0][price_data][product_data][description]"),"FirstMate Credits");
   }finally{globalThis.fetch=original;}
 });
 
