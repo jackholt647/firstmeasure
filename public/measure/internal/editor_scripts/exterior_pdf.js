@@ -415,7 +415,7 @@ const STAT_H=14,STAT_GAP=3,STAT_PAD=4.8;
 function drawStatGrid(doc,stats,x,y,w,colors,perRow=stats.length){
  const {panel,fit,accent}=writer(doc,colors),cw=(w-STAT_GAP*(perRow-1))/perRow,inner=cw-STAT_PAD-2,rows=Math.ceil(stats.length/perRow);
  const largest=(texts,size,min)=>{doc.setFont('Montserrat','bold');while(size>min&&texts.some(t=>(doc.setFontSize(size),doc.getTextWidth(t)>inner)))size-=.25;return size;};
- const titles=stats.map(([label])=>String(label).toUpperCase()),values=stats.map(([,value])=>String(value)),titleSize=largest(titles,7,5),valueSize=largest(values,11,7.5);
+ const titles=stats.map(([label])=>String(label).toLocaleUpperCase(window.ReportUnits?.current?.().language||'en-US')),values=stats.map(([,value])=>String(value)),titleSize=largest(titles,7,5),valueSize=largest(values,11,7.5);
  stats.forEach((s,i)=>{const bx=x+i%perRow*(cw+STAT_GAP),by=y+Math.floor(i/perRow)*(STAT_H+STAT_GAP);panel(bx,by,cw,STAT_H);
   doc.setTextColor(150,150,150);doc.text(fit(titles[i],inner,titleSize,true),bx+STAT_PAD,by+5.6);
   doc.setTextColor(accent.r,accent.g,accent.b);doc.text(fit(values[i],inner,valueSize,true),bx+STAT_PAD,by+11.2);});
