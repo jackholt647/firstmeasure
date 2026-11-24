@@ -76,6 +76,8 @@ export type SharedPdfClientAssetName =
   | "pdf-standalone"
   | "font-regular"
   | "font-bold"
+  | "font-noto-regular"
+  | "font-noto-bold"
   | "default-logo";
 
 export type SharedPdfClientAsset = {
@@ -93,6 +95,8 @@ type RuntimeAssetPaths = {
   pdfStandalonePath: string;
   fontRegularPath: string;
   fontBoldPath: string;
+  notoRegularPath: string;
+  notoBoldPath: string;
   defaultLogoPath: string;
 };
 
@@ -356,6 +360,11 @@ export async function getSharedPdfRuntimeAsset(name: SharedPdfClientAssetName): 
         contentType: "font/ttf",
         fileName: "Montserrat-Bold.ttf"
       };
+    // Reports in a script Montserrat lacks (Greek) are set in Noto Sans (pdf.js pdfReportFontFiles, FM-632).
+    case "font-noto-regular":
+      return { name, filePath: scripts.notoRegularPath, contentType: "font/ttf", fileName: "NotoSans-Regular.ttf" };
+    case "font-noto-bold":
+      return { name, filePath: scripts.notoBoldPath, contentType: "font/ttf", fileName: "NotoSans-Bold.ttf" };
     case "default-logo":
       return {
         name,
@@ -371,7 +380,7 @@ export async function getSharedPdfRuntimeAsset(name: SharedPdfClientAssetName): 
 async function loadRuntimeScripts() {
   const scriptsPromise = cachedScriptsPromise ?? (cachedScriptsPromise = (async () => {
       const roots = await resolveRuntimeRoots();
-      const [jsPdfPath, fontRegularPath, fontBoldPath, defaultLogoPath] = await Promise.all([
+      const [jsPdfPath, fontRegularPath, fontBoldPath, notoRegularPath, notoBoldPath, defaultLogoPath] = await Promise.all([
         resolveExistingPath(
           [path.join(roots.v1Root, "node_modules", "jspdf", "dist", "jspdf.umd.min.js")],
           "jsPDF runtime script"
@@ -383,6 +392,14 @@ async function loadRuntimeScripts() {
         resolveExistingPath(
           [path.join(roots.publicRoot, "fonts", "Montserrat-Bold.ttf")],
           "Montserrat bold font"
+        ),
+        resolveExistingPath(
+          [path.join(roots.publicRoot, "fonts", "NotoSans-Regular.ttf")],
+          "Noto Sans regular font"
+        ),
+        resolveExistingPath(
+          [path.join(roots.publicRoot, "fonts", "NotoSans-Bold.ttf")],
+          "Noto Sans bold font"
         ),
         resolveExistingPath(
           [path.join(roots.publicRoot, "images", "logo_red.png")],
@@ -423,6 +440,8 @@ async function loadRuntimeScripts() {
             pdfStandalonePath,
             fontRegularPath,
             fontBoldPath,
+            notoRegularPath,
+            notoBoldPath,
             defaultLogoPath
           };
         }

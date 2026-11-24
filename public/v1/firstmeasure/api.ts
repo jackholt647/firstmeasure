@@ -8609,6 +8609,11 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
       fontName === "montserrat-bold.ttf" ? "font-bold" :
 
+      fontName === "notosans-regular.ttf" ? "font-noto-regular" :
+
+      fontName === "notosans-bold.ttf" ? "font-noto-bold" :
+
+
       null;
 
     if (!assetName) {
@@ -22190,6 +22195,11 @@ function getPdfRuntimeAssetName(params: unknown): SharedPdfClientAssetName {
     case "font-bold":
 
       return "font-bold";
+
+    case "font-noto-regular":
+      return "font-noto-regular";
+    case "font-noto-bold":
+      return "font-noto-bold";
 
     case "default-logo":
 
