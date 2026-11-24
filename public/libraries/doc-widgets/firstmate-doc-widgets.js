@@ -236,6 +236,9 @@
     if (!media) return "";
     if (typeof media === "string") return media;
     if (media.url) return media.url;
+    // "thumb" names no stored rendition (the media file route answers 404, a broken chip: GP-168); a chip's picture
+    // is the 320 px thumbnail, which every image has (or its original, when it is smaller).
+    if (variant === "thumb") variant = "thumb_320";
     if (typeof ctx.mediaUrl === "function") return ctx.mediaUrl(media, variant || media.variant) || "";
     const api = ctx.api || {};
     if (media.media_id && api.orgId) {
