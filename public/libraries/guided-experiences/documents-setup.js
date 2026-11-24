@@ -276,8 +276,10 @@ const css = `
 .gxd-first-lead i{font-size:15px}
 .gxd-first-app{position:relative;flex:1 1 auto;min-height:0;overflow:hidden;border-radius:10px}
 .gxd-first-app .fmdx-doc-card-row,.gxd-first-app .fmdx-editor-top:not(:has(>[data-fmdx-mode-toggle]:not([hidden]))){display:none!important}
-/* In the editor ("Edit manually") the bar keeps only its way back to the steps (GP-169). */
-.gxd-first-app .fmdx-editor-top>:not([data-fmdx-mode-toggle]){display:none!important}
+/* In the editor ("Edit manually") the bar keeps only its way back to the steps and the Setup / Agent tray's button,
+   since that tray starts closed there (GP-169). */
+.gxd-first-app .fmdx-editor-top>:not([data-fmdx-mode-toggle]):not(.fmdx-doc-actions),.gxd-first-app .fmdx-editor-top .fmdx-doc-actions>:not([data-fmdx-data-toggle]){display:none!important}
+.gxd-first-app .fmdx-editor-top{justify-content:space-between}
 .gxd-first-app .fmdx-editor-top>[data-fmdx-mode-toggle]{grid-column:1/-1;justify-self:start;width:auto!important;padding:0 12px!important;font-size:13px!important;gap:7px!important}
 .gxd-first .gxd-busy{flex:1 1 auto;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;min-height:100%;color:#475467;font-size:13px}
 /* The wide steps (style, prices, wording, first proposal) take the project window's size (GP-23): on the page the
