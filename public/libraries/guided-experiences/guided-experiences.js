@@ -923,7 +923,19 @@
           } else { host.remove(); pop.remove(); }
           resolve({ status, shown, last: list[index]?.id || '' });
         };
-        const rectOf = (el) => { const r = el.getBoundingClientRect(), pad = 6; return { x: r.left - pad, y: r.top - pad, w: r.width + pad * 2, h: r.height + pad * 2, r: Math.min(14, parseFloat(getComputedStyle(el).borderTopLeftRadius || '0') + 4) }; };
+        /**
+         * The spotlight and ring around a target: 6px out from it, kept inside the page by the ring's 3px so none of it
+         * is cut off. A target flush with an edge (the project window's details tray, GP-171) is a panel against the
+         * window: its ring hugs it on every side rather than running off one edge and standing 6px away on the other.
+         */
+        const rectOf = (el) => {
+          const r = el.getBoundingClientRect(), W = root.innerWidth, H = root.innerHeight, inset = 3;
+          const flush = r.left < inset || r.top < inset || r.right > W - inset || r.bottom > H - inset, pad = flush ? 0 : 6;
+          const out = (room) => Math.max(0, Math.min(pad, room));
+          const x = Math.max(inset, r.left - out(r.left - inset)), y = Math.max(inset, r.top - out(r.top - inset));
+          const right = Math.min(W - inset, r.right + out(W - inset - r.right)), bottom = Math.min(H - inset, r.bottom + out(H - inset - r.bottom));
+          return { x, y, w: Math.max(0, right - x), h: Math.max(0, bottom - y), r: Math.min(14, parseFloat(getComputedStyle(el).borderTopLeftRadius || '0') + 4) };
+        };
         const rr = (h) => { const r = Math.min(h.r, h.w / 2, h.h / 2); return `M${h.x + r},${h.y}h${h.w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h.h - 2 * r}a${r},${r} 0 0 1 -${r},${r}h-${h.w - 2 * r}a${r},${r} 0 0 1 -${r},-${r}v-${h.h - 2 * r}a${r},${r} 0 0 1 ${r},-${r}z`; };
         // One hole per target, except a target inside another found target: the dim is drawn even-odd, so a hole
         // inside a hole would be dimmed again (the inner target dark, the rest of the outer one lit).
@@ -957,7 +969,8 @@
           // On a phone the card is a sheet along the bottom edge; it goes to the top when the target is in the lower half
           // (the project window's bottom buttons), so it never covers what it points at.
           pop.classList.toggle('gx-sheet-top', W <= 640 && r.top + r.height / 2 > H / 2);
-          ring.hidden = false; Object.assign(ring.style, { left: `${r.left - 6}px`, top: `${r.top - 6}px`, width: `${r.width + 12}px`, height: `${r.height + 12}px` });
+          const box = rectOf(main);
+          ring.hidden = false; Object.assign(ring.style, { left: `${box.x}px`, top: `${box.y}px`, width: `${box.w}px`, height: `${box.h}px` });
           let placement = step.placement && step.placement !== 'auto' ? step.placement : (H - r.bottom > p.height + gap ? 'bottom' : r.top > p.height + gap ? 'top' : W - r.right > p.width + gap ? 'right' : 'left');
           let left, top;
           if (placement === 'bottom') { left = r.left + r.width / 2 - p.width / 2; top = r.bottom + gap; }

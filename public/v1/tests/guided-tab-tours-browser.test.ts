@@ -144,7 +144,10 @@ async function walk(page: Page, experienceId: string) {
           const target = selectors.map((selector) => document.querySelector(selector)).find((el) => !!el && el.getClientRects().length > 0);
           if (!target) return false;
           const r = target.getBoundingClientRect();
-          return Math.abs(box.left + 6 - r.left) < 2 && Math.abs(box.top + 6 - r.top) < 2 && Math.abs(box.width - 12 - r.width) < 2;
+          // 6px out from it, less where that would leave the page: the ring stays 3px inside it (GP-171).
+          const near = (value: number, low: number, high: number) => value >= low - 2 && value <= high + 2;
+          return near(box.left, r.left - 6, Math.max(3, r.left)) && near(box.top, r.top - 6, Math.max(3, r.top))
+            && near(box.right, Math.min(innerWidth - 3, r.right), r.right + 6) && near(box.bottom, Math.min(innerHeight - 3, r.bottom), r.bottom + 6);
         }), `"${title}" rings its control`);
       } else assert.ok(await settled(() => !!document.querySelector(".gx-pop.gx-center")), `"${title}" is a centred card`);
     }

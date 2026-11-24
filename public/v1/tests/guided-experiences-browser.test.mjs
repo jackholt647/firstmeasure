@@ -993,9 +993,11 @@ test('a covering panel reopened during a tour holds it on the close control; clo
     await tourStep(page, 'Close the tray');
     await page.click('#close');
     await tourStep(page, 'Open again');
+    // Each is flush with an edge of the page, so its ring hugs it, kept 3px inside the page (GP-171).
     const ringOn = (id) => page.waitForFunction((id) => {
       const ring = document.querySelector('.gx-ov-ring').getBoundingClientRect(), el = document.getElementById(id).getBoundingClientRect();
-      return Math.abs(ring.left + 6 - el.left) < 2 && Math.abs(ring.top + 6 - el.top) < 2 && Math.abs(ring.width - 12 - el.width) < 2;
+      return Math.abs(ring.left - Math.max(3, el.left)) < 2 && Math.abs(ring.top - Math.max(3, el.top)) < 2
+        && Math.abs(ring.right - Math.min(innerWidth - 3, el.right)) < 2 && Math.abs(ring.bottom - Math.min(innerHeight - 3, el.bottom)) < 2;
     }, id);
     await ringOn('title');
     // The person taps the title through the spotlight: the tray covers it, so the card holds on the tray's close.
@@ -1094,6 +1096,44 @@ test('two selectors that find the same element light it, not dim it again', asyn
     await page.waitForTimeout(600);
     const hit = await page.evaluate(() => { const r = document.getElementById('strip').getBoundingClientRect(); return document.elementFromPoint(r.left + 20, r.top + r.height / 2)?.id === 'strip' ? 'lit' : 'dimmed'; });
     assert.equal(hit, 'lit');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+// GP-171: the project window's details tray is flush with the window's left and bottom edges. Its ring stood 6px out
+// from it, so the left and bottom ran off the window and were cut off while the right stood 6px away. A target against
+// an edge is ringed on its own edges, kept inside the page; one with room keeps its 6px.
+test('a target flush with the page edges is ringed inside the page, hugging it on every side', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await panelPage(browser);
+    await page.evaluate(() => {
+      const tray = document.createElement('aside'); tray.id = 'edgeTray';
+      tray.style.cssText = 'position:absolute;left:0;bottom:0;top:40px;width:300px;margin:0;padding:0;border:0;background:#fff';
+      const mid = document.createElement('button'); mid.type = 'button'; mid.id = 'mid'; mid.textContent = 'Save';
+      mid.style.cssText = 'position:absolute;left:320px;top:300px';
+      document.body.append(tray, mid);
+      FirstMateGuides.overlay.run([
+        { id: 'tray', targets: ['#edgeTray'], placement: 'auto', title: { key: 'k', text: 'The tray' }, body: { key: 'b', text: 'b' }, advance: 'next', wait_ms: 500 },
+        { id: 'mid', targets: ['#mid'], placement: 'auto', title: { key: 'k2', text: 'The button' }, body: { key: 'b2', text: 'b' }, advance: 'next', wait_ms: 500 },
+      ], {});
+    });
+    await tourStep(page, 'The tray');
+    await page.waitForTimeout(600);
+    const box = await page.evaluate(() => {
+      const ring = document.querySelector('.gx-ov-ring').getBoundingClientRect(), el = document.getElementById('edgeTray').getBoundingClientRect();
+      return { ring: [ring.left, ring.top, ring.right, ring.bottom], el: [el.left, el.top, el.right, el.bottom], W: innerWidth, H: innerHeight };
+    });
+    // The 3px ring is drawn outside its box: the box stays 3px in from the page's edges, so all of it shows.
+    assert.ok(box.ring[0] >= 3 && box.ring[3] <= box.H - 3, `the ring stays inside the page (${box.ring} in ${box.W}x${box.H})`);
+    assert.ok(Math.abs(box.ring[1] - box.el[1]) < 2 && Math.abs(box.ring[2] - box.el[2]) < 2, `it hugs the tray's free edges (${box.ring} vs ${box.el})`);
+    assert.ok(Math.abs(box.ring[0] - 3) < 2 && Math.abs(box.ring[3] - (box.H - 3)) < 2, 'and its edges against the page');
+    await page.locator('.gx-pop [data-gx=next]').click();
+    await tourStep(page, 'The button');
+    await page.waitForFunction(() => {
+      const ring = document.querySelector('.gx-ov-ring').getBoundingClientRect(), el = document.getElementById('mid').getBoundingClientRect();
+      return Math.abs(ring.left + 6 - el.left) < 2 && Math.abs(ring.top + 6 - el.top) < 2 && Math.abs(ring.width - 12 - el.width) < 2;
+    });
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
