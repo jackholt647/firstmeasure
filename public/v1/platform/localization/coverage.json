@@ -1,5 +1,5 @@
 {
-  "files": 319,
+  "files": 318,
   "namespaces": 120,
   "messages": 17443,
   "migration": [
@@ -1323,13 +1323,6 @@
       "file": "public/libraries/doc-renderer/firstmate-doc-renderer.js",
       "namespace": "doc-renderer",
       "references": 1,
-      "candidates": 0,
-      "edits": 0
-    },
-    {
-      "file": "public/libraries/doc-sent-editor/firstmate-doc-sent-editor.js",
-      "namespace": "doc-sent-editor",
-      "references": 0,
       "candidates": 0,
       "edits": 0
     },

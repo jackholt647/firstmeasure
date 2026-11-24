@@ -1,5 +1,15 @@
 # Editing a document as sent
 
+> **GP-169 (2026-11-24):** "Edit manually" now opens the full document editor
+> (FMDocEditor / FMVisualEditor, the editor Doc Studio uses) for every
+> organization, and the separate as-sent editor (`FMDocSentEditor`) was removed
+> from the browser at Jack's direction. The Doc Studio flag
+> (`documents.templates_studio`) only hides the global Doc Studio tab. The
+> server side below (traced resolution, input rules, `POST .../as-sent`) is
+> unchanged and is what the full editor is to build on to show the finished
+> document with click-to-edit data and live totals; until then, the sections
+> about "the editor" describe the retired `FMDocSentEditor` (see git history).
+
 "Edit manually" on a document opens it **exactly as the customer will get
 it**: the same static render the PDF is made from, with line items expanded,
 totals computed and every field filled. There are no variables on the page.
@@ -14,8 +24,7 @@ any template whose text binds data gets it. Entry points:
 | Provenance (`trace`) and the helpers below | `public/libraries/doc-model/firstmate-doc-model.js`, section "Bound inputs" |
 | Traced resolution, input kinds, the write route | `public/v1/documents/service.ts` (`resolveDocumentInstance({ trace })`, `editDocumentAsSent`), `public/v1/documents/inputs.ts` |
 | Routes | `POST /organizations/:orgId/documents/:id/resolve { trace: true }`, `POST /organizations/:orgId/documents/:id/as-sent` |
-| The editor | `public/libraries/doc-sent-editor/firstmate-doc-sent-editor.js` (`FMDocSentEditor.open`) |
-| Host | `openAsSentEditor()` in `public/libraries/apps/documents/project.js` |
+| The editor | Retired (GP-169); "Edit manually" is `openFullEditor()` in `public/libraries/apps/documents/project.js`, the full editor |
 | Tests | `public/v1/tests/document-as-sent-editing.test.ts` |
 
 ## What every value on the page is
