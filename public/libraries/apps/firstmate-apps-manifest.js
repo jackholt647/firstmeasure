@@ -214,12 +214,11 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261124-gp168-popup-thumb'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261119-gp102-focal'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261119-gp96-styles-2'),
-        versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261026-mobile-documents-2'),
         versionedBundle('photos/feed.js', '20261120-gp127-thumb-size'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261119-gp124-fit-library')
+        versionedBundle('documents/project.js', '20261124-gp169-full-editor')
       ]
     },
     {
