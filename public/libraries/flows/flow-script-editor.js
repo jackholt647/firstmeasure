@@ -138,6 +138,8 @@
 .gxs-step:has(.fse[data-embedded]){padding:4px 0 0}
 .gxs-step:has(.fse[data-embedded]) .gxs-titlebar{padding:0 24px 10px;margin:0;border-bottom:1px solid #eaecf0;align-items:center}
 .gxs-step:has(.fse[data-embedded]) .gxs-body{margin:0}
+.gxs.gxs-float-foot:has(.fse[data-embedded][data-chat="on"]) .gxs-foot{padding-right:calc(var(--fse-chat,340px) + 20px)}
+.gxs.gxs-float-foot:has(.fse[data-embedded][data-chat="on"]) .fse-chat-body{padding-bottom:0}
 .fse-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .fse-note{font-size:13px;color:#667085;font-weight:650;display:flex;gap:6px}
 .fse-note i{margin-top:4px;color:#98a2b3}
@@ -633,7 +635,7 @@
       const top = t.closest('[data-fse-top] button, [data-fse-top] input'); if (top) return onTop(top);
       const node = t.closest('[data-go]'); if (node) return jump(node.dataset.go);
       const end = t.closest('[data-go-end]');
-      if (end) { const [stepId, optionId] = end.dataset.goEnd.split('|'); if (optionId) choices.set(stepId, optionId); jump(stepId); if (optionId && mode === 'edit') { selected = { step: stepId, option: optionId }; drawBox(); } return; }
+      if (end) { const [stepId, optionId] = end.dataset.goEnd.split('|'); if (optionId) choices.set(stepId, optionId); jump(stepId); if (optionId && mode === 'edit') { selected = { step: stepId, option: optionId }; setTimeout(drawBox, 460); } return; }
       const card = t.closest('[data-card]');
       if (card && card.dataset.dist !== '0') { go(path().indexOf(card.dataset.card)); return; }
       const insert = t.closest('[data-insert]'); if (insert) return insertAfter(insert.dataset.insert);
