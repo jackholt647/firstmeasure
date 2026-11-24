@@ -63,13 +63,15 @@ test("a flow plays step by step: branches, records, saved answers, actions and o
   const lead = await storage.readDocument(ORG, "projects", String(view.project!.id));
   assert.deepEqual([(lead.data.lead_source as Record<string, unknown>).kind, (lead.data.lead_source as Record<string, unknown>).entered_by_user_id, lead.data.address], ["manual_lead", "u_rep", "4 Oak Ln"]);
   assert.equal((await listEventRecords(ORG, { project_id: lead.id, type: "lead.received" })).length, 1, "intake ran");
-  await assert.rejects(() => flows.advanceRun(viewer, view.run.id, { step_id: "details", answers: {} }), /belongs to someone else/, "a run is its player's");
-  view = await flows.advanceRun(rep, view.run.id, { step_id: "details", answers: { need: "repair", timeline: "asap" } });
-  assert.equal(view.step.id, "done");
-  assert.equal((view.step.blocks as Array<{ kind: string; text?: string }>).find((block) => block.kind === "note")?.text, "Ada Stone is in your new leads.", "notes are filled from the run");
+  await assert.rejects(() => flows.advanceRun(viewer, view.run.id, { step_id: "ask_need", answers: {} }), /belongs to someone else/, "a run is its player's");
+  // One question per step.
+  view = await flows.advanceRun(rep, view.run.id, { step_id: "ask_need", answers: { need: "repair" } });
+  assert.equal(view.step.id, "ask_timeline");
   view = await flows.backRun(rep, view.run.id);
-  assert.deepEqual([view.step.id, view.run.answers.need], ["details", "repair"], "back keeps the answers");
-  view = await flows.advanceRun(rep, view.run.id, { step_id: "details", answers: { need: "repair", timeline: "asap" } });
+  assert.deepEqual([view.step.id, view.run.answers.need], ["ask_need", "repair"], "back keeps the answers");
+  view = await flows.advanceRun(rep, view.run.id, { step_id: "ask_need", answers: { need: "repair" } });
+  while (view.step.id !== "done") view = await flows.advanceRun(rep, view.run.id, { step_id: view.step.id, answers: {} });
+  assert.equal((view.step.blocks as Array<{ kind: string; text?: string }>).find((block) => block.kind === "note")?.text, "Ada Stone is in your new leads.", "notes are filled from the run");
   view = await flows.advanceRun(rep, view.run.id, { step_id: "done", answers: {} });
   assert.equal(view.run.status, "done");
 
@@ -80,7 +82,7 @@ test("a flow plays step by step: branches, records, saved answers, actions and o
   assert.equal((await contacts.readContact(ORG, String(view.contact!.id))).name, "Ada Stone", "finding a contact never rewrites it");
 
   // The new-lead call: no answer sends the text it shows and ends as no answer; answered routes by the choice.
-  const call = await flows.saveFlow(owner, { id: "new_lead_call", definition: newLeadFlow({ contact: "call", no_answer: ["text", "retry"], questions: SUGGESTED_QUESTIONS.slice(0, 2), board_id: "" }) });
+  const call = await flows.saveFlow(owner, { id: "new_lead_call", definition: newLeadFlow({ contact: "call", no_answer: ["text", "retry"], questions: SUGGESTED_QUESTIONS.filter((question) => ["need", "address"].includes(question.key)), board_id: "" }) });
   assert.equal(call.kind, "call");
   let run = await flows.startRun(rep, { flow_id: "new_lead_call", source: { kind: "crm", project_id: lead.id, contact_id: view.contact!.id } });
   assert.match(String((run.step.blocks[0] as { text?: string }).text), /Call Ada Stone at/);
@@ -98,7 +100,9 @@ test("a flow plays step by step: branches, records, saved answers, actions and o
   // Answered → questions saved to the project → not interested marks the lead lost.
   run = await flows.startRun(rep, { flow_id: "new_lead_call", source: { project_id: lead.id, contact_id: view.contact!.id } });
   run = await flows.advanceRun(rep, run.run.id, { step_id: "dial", answers: { answered: "yes" } });
-  run = await flows.advanceRun(rep, run.run.id, { step_id: "greet", answers: { need: "replacement", address: "4 Oak Lane" } });
+  run = await flows.advanceRun(rep, run.run.id, { step_id: "greet", answers: {} });
+  run = await flows.advanceRun(rep, run.run.id, { step_id: "ask_need", answers: { need: "replacement" } });
+  run = await flows.advanceRun(rep, run.run.id, { step_id: "ask_address", answers: { address: "4 Oak Lane" } });
   assert.equal((await storage.readDocument(ORG, "projects", lead.id)).data.address, "4 Oak Lane", "saves_to wrote the project field");
   run = await flows.advanceRun(rep, run.run.id, { step_id: "next", answers: { result: "not_interested" } });
   assert.equal(run.outcome?.id, "not_interested");
