@@ -149,3 +149,26 @@ test('a base face that spans no area is dropped on open, so the base can be draw
  const kept={faces:[square,{id:'pitched',points:[p(0,3,0),p(4,3,0),p(4,4,1)]},{id:'sliver',points:[p(0,0),p(4,0),p(2,-.0001)]}]};
  assert.equal(B.dropEmptyFaces(kept),false);assert.equal(kept.faces.length,3);
 });
+test('a spike of no width in a base outline is dropped on open, so the base can be drawn (FM-636)',()=>{
+ // 119 River Bottom Cir: a wall pushed in 0.3 m beside a wall 0.17 degrees off square, then welded. The outline runs
+ // out to the old corner (index 9) and straight back over the new one (index 8).
+ const ring=[[3.171918999999998,-7.465042,187.33401489257812],[4.703606,-6.813468,187.334015],[6.03934,-3.718708000000001,187.334015],[5.6254709275691015,-2.6005780370269624,187.334015],[6.288896573395286,-2.26143221808202,187.334015],[7.038392,-0.5247340000000003,187.33401489257812],[6.687445,0.680326,187.334015],[6.410943793756931,0.7996697655594129,187.33401495875452],[7.162915595406734,2.541873132801378,187.3340149579086],[7.439081276100453,2.4217520060043882,187.334015],[4.751574895988572,3.5907107768487805,187.33401489257812],[4.52244,4.152602,187.33401496046372],[3.83763782807678,4.45046193517846,187.33401489257812],[3.428297,4.296125,187.33401496315523],[3.266399999852551,4.236702999945881,187.334015],[2.418171,4.605649,187.334015],[3.786760959721362,7.777675906644848,187.334015],[-3.6347333154761388,10.979393136099997,187.334015],[-5.050734794534255,7.697734666743617,187.3340149819248],[-5.555636,7.917347,187.3340149703455],[-5.676935,7.637723,187.334015],[-5.810529,8.027934,187.3340149705946],[-6.12011859219134,7.3161648226187594,187.334015],[-5.840798,7.194671,187.33401497066976],[-5.840771,7.194733,187.33401497066973],[-5.838581,7.193781,187.3340149706676],[-6.292428,6.141893,187.33401489257812],[-6.752863622950377,5.091778834677825,187.33401489257812],[-6.759085,5.094455,187.334015],[-7.03908603361314,5.21437192151467,187.334015],[-7.34466,4.500869000000001,187.334015],[-6.971192826629505,4.6703549244718845,187.334015],[-5.278446,3.932917,187.33401497028265],[-5.279037,3.931557,187.3340149702833],[-5.00129043973374,3.8107491912652653,187.334015],[-6.333513,0.747881,187.33401497150984],[-6.335962,0.74893,187.33401497151226],[-6.335957,0.748942,187.33401497151223],[-6.61595915889796,0.86885862897844,187.334015],[-6.921532,0.15535600000000005,187.334015],[-6.547871142720817,0.32493093523037575,187.334015],[-5.394128,-0.1769010000000002,187.33401489257812],[-6.709238010142512,-3.2004260233183057,187.334015],[-6.07407705887908,-3.47669513641684,187.33401489257812],[-7.54605399999518,-6.887115999988831,187.334015],[1.6991710000102822,-10.877019999976179,187.334015]];
+ const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);
+ const points=ring.map(([x,y,z],i)=>({x,y,z,nodeId:'n'+i})),before=area(points);
+ const sketch={nodes:points.map(({x,y,z,nodeId})=>({x,y,z,id:nodeId,fixed:true})),edges:[[7,8],[8,9],[8,10],[10,11],[3,40]].map(([a,b],i)=>({id:'e'+i,a:'n'+a,b:'n'+b,fixed:a!==3}))};
+ const base={faces:[{id:'base-1',points}],sketch};
+ assert.throws(()=>B.terrain(base),/valid planar region/);
+ assert.equal(B.dropSpikes(base),true);
+ assert.deepEqual(base.faces[0].points.map(p=>p.nodeId),points.map(p=>p.nodeId).filter(id=>id!=='n9'));
+ assert.ok(Math.abs(area(base.faces[0].points)-before)<1e-9,'the spike enclosed nothing');
+ assert.ok(B.terrain(base).faces.length>0);
+ // The line out to the old corner goes with it; every other line and corner stays as it was.
+ assert.deepEqual(sketch.edges.map(e=>e.id),['e0','e2','e3','e4']);assert.ok(!sketch.nodes.some(n=>n.id==='n9'));assert.equal(sketch.nodes.length,ring.length-1);
+ assert.equal(B.dropSpikes(base),false,'nothing else to drop');
+ // A narrow notch of real width, and a corner where the outline only turns, stay.
+ const notch={faces:[{id:'a',points:[p(0,0),p(2,0),p(2,1),p(2.001,1),p(2.001,0),p(4,0),p(4,3),p(0,3)]}]};
+ assert.equal(B.dropSpikes(notch),false);assert.equal(notch.faces[0].points.length,8);
+ // A spike in a hole goes too.
+ const holed={faces:[{id:'h',points:[p(0,0),p(10,0),p(10,10),p(0,10)],holes:[[p(2,2),p(4,2),p(4,4),p(2,4),p(2,5)]]}]};
+ assert.equal(B.dropSpikes(holed),true);assert.equal(holed.faces[0].holes[0].length,4);
+});

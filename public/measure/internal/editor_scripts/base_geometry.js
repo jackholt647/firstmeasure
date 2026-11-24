@@ -19,6 +19,19 @@ function dropEmptyFaces(base){
  const empty=f=>{const ps=f.points||[];if(ps.length<3)return true;let x=0,y=0,z=0;for(let i=0;i<ps.length;i++){const a=ps[i],b=ps[(i+1)%ps.length];x+=(a.y-b.y)*(a.z+b.z);y+=(a.z-b.z)*(a.x+b.x);z+=(a.x-b.x)*(a.y+b.y);}return !(Math.hypot(x,y,z)/2>1e-10);};
  if(!base?.faces?.some(empty)||base.faces.every(empty))return false;base.faces=base.faces.filter(f=>!empty(f));return true;
 }
+// A corner where the outline runs out and straight back along itself (a spike of no width) encloses nothing, but
+// the triangulator cannot resolve it: the base could not be drawn and wall mode stayed blank on every open. A wall
+// pushed in beside a wall a fraction of a degree off square left a hair-thin sliver, and the point weld folded it
+// flat onto that wall (FM-636). The spike's corner goes, with the line out to it if nothing else uses that corner.
+function dropSpikes(base){
+ if(!base?.faces?.length)return false;const removed=new Set();let changed=false;
+ const clean=ring=>{for(let again=true;again&&ring.length>3;){again=false;for(let i=0;i<ring.length;i++){const a=ring[(i+ring.length-1)%ring.length],b=ring[i],c=ring[(i+1)%ring.length],ab=dist(a,b),bc=dist(b,c);
+  if(ab>1e-9&&bc>1e-9&&Math.abs(cross(a,b,c))/Math.max(ab,bc)<1e-6&&(a.x-b.x)*(c.x-b.x)+(a.y-b.y)*(c.y-b.y)>0){if(b.nodeId)removed.add(b.nodeId);ring.splice(i,1);changed=again=true;break;}}}};
+ for(const f of base.faces)if(!f.curves?.length){clean(f.points);(f.holes||[]).forEach(clean);}
+ const s=base.sketch;if(removed.size&&s?.nodes&&s?.edges){const kept=new Set(base.faces.flatMap(f=>[f.points,...(f.holes||[])].flat().map(p=>p.nodeId))),gone=new Set([...removed].filter(id=>!kept.has(id))),degree=id=>s.edges.filter(e=>e.a===id||e.b===id).length;
+  s.edges=s.edges.filter(e=>!(e.fixed&&[e.a,e.b].some(id=>gone.has(id)&&degree(id)===1)));s.nodes=s.nodes.filter(n=>!gone.has(n.id)||s.edges.some(e=>e.a===n.id||e.b===n.id));}
+ return changed;
+}
 function terrain(base){
  const points=[],faces=[];
  for(const f of base.faces){const n=points.length;points.push(...f.points);faces.push(...triangles(f.points).map(t=>t.map(i=>i+n)));}
@@ -602,6 +615,6 @@ function boundaryAxis(face,direction,tolerance=5*Math.PI/180){
   }
  }return best;
 }
-const api={foldAxis,repairStoredRoofContacts,usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,dropEmptyFaces,terrain,fromRoof,repairInitial,fitGrade,reground,followCuts,simplePieces,split,transform,validate,boundary,followWalls};
+const api={foldAxis,repairStoredRoofContacts,usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,dropEmptyFaces,dropSpikes,terrain,fromRoof,repairInitial,fitGrade,reground,followCuts,simplePieces,split,transform,validate,boundary,followWalls};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BaseGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

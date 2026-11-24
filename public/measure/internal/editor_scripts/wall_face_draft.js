@@ -682,6 +682,8 @@ window.createWallFaceDraft=function(host){
     // A base face the weld leaves without area (a sliver whose two corners became one) goes, as a wall face does.
     // Kept, it was saved with two points, and no later open of wall mode could draw the base (FM-630).
     next.faces=next.faces.filter(f=>!welded.has(f.id)||!flat(f));if(!next.faces.length)throw Error('The weld would remove the whole base.');
+    // A hair-thin sliver it folds flat leaves a spike of no width, which cannot be drawn either: its corner goes (FM-636).
+    B?.dropSpikes?.({faces:next.faces.filter(f=>welded.has(f.id))});
     const source=copy(base);source.faces=copy(next.faces);if(source.sketch)source.sketch.nodes=source.sketch.nodes.map(n=>n.fixed?onBase(n):n);S.rebind(source,next);for(const f of next.faces)if(welded.has(f.id))K.triangles(f.points,f.holes||[]);edits.$base=next;}
    const parse=key=>{const [x,y,z]=key.split(',').map(Number);return {x,y,z};},at=p=>{const m=anyAt(p);return m?m.to:p;},rekey=key=>{const p=parse(key);return [p.x,p.y,p.z].every(Number.isFinite)?W.vertexKey(at(p)):key;};
    W.followWireExclusions(edits,rollback);
