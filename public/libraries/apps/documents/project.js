@@ -1356,6 +1356,8 @@
       docWorkflow: null,              // { definition, state } for the open doc (null = none)
       workflowHandle: null,           // FMDocWorkflow mount handle
       workflowWrites: { params: {}, outputs: {} },
+      previewTyped: new Map(),         // params answered since the preview's last server resolve (localWorkflowPreview, GP-168)
+      previewLast: null,               // that resolve: the definition, scope and widget data the local preview starts from
       workflowFlushTimer: 0,
       workflowFlushing: null,
       // unified document screen (one top bar for BOTH views)
@@ -2167,7 +2169,10 @@
       });
       state.workflowTouched = true; // editor view must re-resolve on switch
       if (target.startsWith('outputs.')) state.workflowWrites.outputs[target.slice('outputs.'.length)] = clone(value);
-      else state.workflowWrites.params[target.replace(/^params\./, '')] = clone(value);
+      else {
+        state.workflowWrites.params[target.replace(/^params\./, '')] = clone(value);
+        state.previewTyped.set(target.replace(/^params\./, ''), clone(value));
+      }
       clearTimeout(state.workflowFlushTimer);
       state.workflowFlushTimer = setTimeout(() => { flushWorkflowWrites(); }, 900);
       setWorkflowSaveState('dirty');
@@ -2667,6 +2672,41 @@
       });
     }
 
+    /**
+     * The preview as it is typed (GP-168): the answers typed since the last server resolve, resolved in the browser
+     * into the template with that resolve's scope, so the words show at once; the server's resolve follows as before.
+     * Only plain answers (text, content blocks) are drawn this way, and only when every calculated value comes out as
+     * the server had it: a figure the browser computed is never shown (AGENTS.md, "Editing documents as sent"). Null
+     * when it cannot be drawn here; the preview then waits for the server.
+     */
+    function localWorkflowPreview(){
+      const FM = window.FMDocModel;
+      const last = objectValue(state.previewLast), scope = objectValue(last.scope), working = objectValue(state.working);
+      if (!state.previewTyped.size || typeof FM?.resolveBindings !== 'function' || !objectValue(scope.params) || working.fromTemplate !== true || !working.definition) return null;
+      const plain = (value) => typeof value === 'string' || (Array.isArray(value) && value.every((row) => row && typeof row === 'object' && 'body' in row));
+      if (![...state.previewTyped.values()].every(plain)) return null;
+      try {
+        const next = clone(scope);
+        next.params = clone(objectValue(scope.params));
+        state.previewTyped.forEach((value, key) => setDeepValue(next.params, key, clone(value)));
+        const resolved = FM.resolveBindings(clone(working.definition), next);
+        const computed = (definition) => JSON.stringify(objectValue(objectValue(definition).computed_values));
+        if (computed(resolved) !== computed(last.resolved_definition)) return null;
+        // Pictures load from the same addresses the server gives them, so the preview keeps the ones it has.
+        const attach = (media) => { if (media && typeof media === 'object' && !cleanText(media.url) && firstText(media.media_id, media.mediaId)) media.url = `/v1/platform/organizations/${encodeURIComponent(orgId())}/media/${encodeURIComponent(firstText(media.media_id, media.mediaId))}/file?variant=${encodeURIComponent(firstText(media.variant, 'original'))}`; };
+        const visit = (node) => {
+          if (!node || typeof node !== 'object') return;
+          if (cleanText(node.type) === 'image') attach(objectValue(node.props).media);
+          if (cleanText(objectValue(objectValue(node.style).fill).type) === 'image') attach(objectValue(objectValue(node.style).fill).media);
+          arrayValue(node.children).forEach(visit);
+        };
+        arrayValue(resolved.pages).forEach(visit);
+        return { ...last, resolved_definition: resolved };
+      } catch (error) {
+        return null;
+      }
+    }
+
     /** Mounts the stepper runtime into the unified screen's workflow host.
      *  Anything missing (runtime, record, host) falls back to editor view. */
     async function mountWorkflowHost(){
@@ -2684,6 +2724,12 @@
       }
       destroyWorkflowView();
       state.workflowWrites = { params: {}, outputs: {} };
+      state.previewTyped = new Map();
+      state.previewLast = null;
+      // The template the local preview resolves typed answers into (localWorkflowPreview), read once in the background.
+      if (!objectValue(state.working).definition && !isReadOnlyStatus(doc.status)) {
+        instanceWorkingDefinition().then((working) => { if (cleanText(state.doc?.id) === cleanText(doc.id) && !objectValue(state.working).definition) state.working = working; }).catch(() => {});
+      }
       try {
         state.workflowHandle = runtime.mount(host, {
           workflow: record.definition,
@@ -2709,12 +2755,17 @@
           },
           preview: {
             resolve: async () => {
+              const typed = new Map(state.previewTyped);
               await flushWorkflowWrites();
               const payload = await api().documents.resolve(orgId(), state.doc.id);
               // Rail doc card rides the same resolve: live total for free.
               if (captureResolvedTotal(payload)) updateDocCardTotal();
+              // Answers this resolve saw are the server's now; one typed since stays for the local preview.
+              typed.forEach((value, key) => { if (state.previewTyped.get(key) === value) state.previewTyped.delete(key); });
+              state.previewLast = objectValue(payload);
               return payload;
-            }
+            },
+            local: () => localWorkflowPreview()
           },
           services: workflowServices(),
           // What the host adds to the runtime (the document setup: phone steps at the bottom, the step's title in its
