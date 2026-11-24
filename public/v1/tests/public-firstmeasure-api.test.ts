@@ -149,6 +149,47 @@ test("public FirstMeasure customer API end-to-end and load behavior", async (t) 
     assert.equal(missingScope.json().error, "scope_required");
   });
 
+  // FM-633: a Make scenario's GET /reports sent the live key in a form other than
+  // "Authorization: Bearer <key>" and got a bare missing_api_key it could not act on.
+  await t.test("API key header forms integration tools send, and errors that say what is wrong", async () => {
+    const listWith = (headers: Record<string, string>, url = "/v1/public/firstmeasure/reports") =>
+      app.inject({ method: "GET", url, headers });
+    const [keyPrefix] = /^fmk_live_[^_]+/.exec(liveKey.key) ?? [""];
+    const accepted: Array<Record<string, string>> = [
+      { authorization: `Bearer ${liveKey.key}` },
+      { authorization: `bearer   ${liveKey.key} ` },
+      { authorization: liveKey.key },
+      { authorization: `Bearer Bearer ${liveKey.key}` },
+      { authorization: `Bearer: "${liveKey.key}"` },
+      { authorization: `Bearer ${liveKey.key.slice(0, 30)} ${liveKey.key.slice(30)}` },
+      { "x-api-key": liveKey.key },
+      { authorization: "Basic dXNlcjpwYXNz", "x-api-key": liveKey.key }
+    ];
+    for (const headers of accepted) {
+      const response = await listWith(headers);
+      assert.equal(response.statusCode, 200, `${JSON.stringify(Object.keys(headers))}: ${response.body}`);
+      assert.equal(response.json().ok, true);
+    }
+
+    const cases: Array<[Record<string, string>, string, string?]> = [
+      [{}, "no_api_key"],
+      [{}, "key_in_url", `/v1/public/firstmeasure/reports?api_key=${encodeURIComponent(liveKey.key)}`],
+      [{ authorization: "Bearer " }, "empty_api_key"],
+      [{ authorization: `Bearer ${keyPrefix}` }, "key_prefix_only"],
+      [{ authorization: "Basic dXNlcjpwYXNz" }, "unsupported_scheme"],
+      [{ authorization: "Bearer not-a-firstmeasure-key-0123456789" }, "not_an_api_key"],
+      [{ authorization: `Bearer ${liveKey.key.slice(0, -30)}` }, "malformed_api_key"]
+    ];
+    for (const [headers, reason, url] of cases) {
+      const response = await listWith(headers, url);
+      assert.equal(response.statusCode, 401, `${reason}: ${response.body}`);
+      const body = response.json();
+      assert.equal(body.error, "missing_api_key", reason);
+      assert.equal(body.details?.reason, reason, response.body);
+      assert.ok(!response.body.includes(liveKey.key.slice(-20)), `${reason}: the error must not echo the secret`);
+    }
+  });
+
   let reportId = "";
   await t.test("test-mode order, idempotency, status, PDF, measurements, and files", async () => {
     const created = await app.inject({

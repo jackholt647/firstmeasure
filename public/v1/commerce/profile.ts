@@ -165,7 +165,8 @@ export function installCommerceContext(app:FastifyInstance) {
     if(!/^\/v1\/(platform(?:\/|$)|firstmeasure(?:\/|$)|public\/firstmeasure(?:\/|$))/.test(request.url)||request.url.includes("/auth/"))return done();
     void (async()=>{
       let org="";
-      if(request.url.startsWith("/v1/public/firstmeasure/") && request.headers.authorization)org=(await (await import("../public-firstmeasure/keys.js")).authenticatePublicFirstMeasureRequest(request)).orgId;
+      const keys=request.url.startsWith("/v1/public/firstmeasure/")?await import("../public-firstmeasure/keys.js"):null;
+      if(keys?.presentsPublicFirstMeasureApiKey(request))org=(await keys.authenticatePublicFirstMeasureRequest(request)).orgId;
       else org=(await (await import("../platform/auth.js")).authContextFromRequest(request))?.orgId||"";
       if(!org)return done();
       await withOrganizationCommerce(org,()=>done());

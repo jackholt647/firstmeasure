@@ -232,11 +232,72 @@ export function authenticatePublicFirstMeasureRequest(request: FastifyRequest): 
   return pending;
 }
 
+const EXPECTED_AUTHORIZATION = "Authorization: Bearer fmk_live_...";
+
+function headerText(value: unknown) {
+  return cleanText(Array.isArray(value) ? value[0] : value);
+}
+
+function unquote(value: string) {
+  return value.replace(/^["'`]+|["'`]+$/g, "").trim();
+}
+
+/** True when the request carries an API key header, so the key (not a session) names its organization. */
+export function presentsPublicFirstMeasureApiKey(request: FastifyRequest) {
+  return presentedPublicFirstMeasureApiKey(request).sent;
+}
+
+/**
+ * The key a caller presented. `Authorization: Bearer <key>` is documented; integration tools
+ * (Make, Zapier) often send `Authorization: <key>` or `X-API-Key: <key>` instead, so those are
+ * read too (FM-633). A key in the URL is never accepted: URLs are logged.
+ */
+export function presentedPublicFirstMeasureApiKey(request: FastifyRequest) {
+  const authorization = headerText(request.headers.authorization);
+  const apiKeyHeader = headerText(request.headers["x-api-key"]);
+  let token = unquote(authorization);
+  let scheme = "";
+  for (let i = 0; i < 2; i += 1) {
+    const match = /^(bearer|token|api[-_ ]?key)\s*:?\s*([\s\S]*)$/i.exec(token);
+    if (!match) break;
+    scheme = match[1] ?? "";
+    token = unquote(match[2] ?? "");
+  }
+  if (!scheme && /^[A-Za-z]+\s+\S/.test(token) && !/^fmk_/i.test(token)) scheme = token.split(/\s+/)[0] ?? "";
+  if (apiKeyHeader && !/^fmk_/i.test(token)) {
+    token = unquote(apiKeyHeader.replace(/^bearer\s*:?\s*/i, ""));
+    scheme = "";
+  }
+  // A key has no whitespace: whitespace inside one is a copy-paste line break.
+  token = token.replace(/\s+/g, "");
+  return { token, scheme, sent: Boolean(authorization || apiKeyHeader) };
+}
+
+function missingApiKeyError(request: FastifyRequest, presented: ReturnType<typeof presentedPublicFirstMeasureApiKey>) {
+  const error = (reason: string, message: string) => unauthorized("missing_api_key", message, { reason, expected: EXPECTED_AUTHORIZATION });
+  if (!presented.token) {
+    const keyInUrl = Object.entries(asObject(request.query)).some(([name, value]) =>
+      /^(api[-_]?key|key|token|access[-_]?token|authorization)$/i.test(name) || /^(bearer\s+)?fmk_/i.test(headerText(value)));
+    if (keyInUrl) return error("key_in_url", `API keys are not accepted in the URL. Send the key in a request header: ${EXPECTED_AUTHORIZATION}`);
+    if (presented.sent) return error("empty_api_key", `The API key in the request is empty. Send the full API key: ${EXPECTED_AUTHORIZATION}`);
+    return error("no_api_key", `No API key was sent. Send the full API key in the Authorization header: ${EXPECTED_AUTHORIZATION}`);
+  }
+  if (/^fmk_(test|live)_[A-Za-z0-9-]{8,64}_?$/.test(presented.token)) {
+    return error("key_prefix_only", "This is only the key's prefix (fmk_<mode>_<key id>). Send the full API key, which continues after the prefix.");
+  }
+  if (presented.scheme && !/^(bearer|token|api[-_ ]?key)$/i.test(presented.scheme)) {
+    return error("unsupported_scheme", `'${presented.scheme}' authorization is not supported. Send the API key as a Bearer token: ${EXPECTED_AUTHORIZATION}`);
+  }
+  if (!/^fmk_/i.test(presented.token)) {
+    return error("not_an_api_key", `This is not a FirstMeasure API key (they start with fmk_test_ or fmk_live_). Send it as: ${EXPECTED_AUTHORIZATION}`);
+  }
+  return error("malformed_api_key", `The API key is incomplete or has extra characters. Copy the whole key and send it as: ${EXPECTED_AUTHORIZATION}`);
+}
+
 async function authenticateRequest(request: FastifyRequest): Promise<PublicFirstMeasureAuthContext> {
-  const header = cleanText(request.headers.authorization);
-  const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
-  const parsed = parsePublicFirstMeasureApiKey(token);
-  if (!parsed) throw unauthorized("missing_api_key", "A valid Bearer API key is required.");
+  const presented = presentedPublicFirstMeasureApiKey(request);
+  const parsed = parsePublicFirstMeasureApiKey(presented.token);
+  if (!parsed) throw missingApiKeyError(request, presented);
 
   const record = await withPublicFirstMeasureLock(`key:${parsed.keyId}`, async () => {
     const current = await readPublicFirstMeasureApiKey(parsed.keyId);

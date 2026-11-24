@@ -149,6 +149,7 @@ console.log(result.report.id);</code></pre>
               <h2>Authentication</h2>
               <p>Send the organization API key in every authenticated request:</p>
               <pre><code>Authorization: Bearer fmk_test_your_key</code></pre>
+              <p>Send the whole key, in a header on every request, reads as well as orders. Tools that cannot add the <code>Bearer</code> prefix may send the key alone in <code>Authorization</code> or in <code>X-API-Key</code>. Keys are never accepted in the URL.</p>
               <p>Keys are organization-scoped and mode-scoped. Test keys can access only that organization's test records; live keys can access only its live records. A key may also be restricted by scopes.</p>
               <table>
                 <thead><tr><th>Scope</th><th>Allows</th></tr></thead>
@@ -245,7 +246,7 @@ console.log(result.report.id);</code></pre>
                 <thead><tr><th>HTTP</th><th>Representative code</th><th>Meaning</th></tr></thead>
                 <tbody>
                   <tr><td>400</td><td><code>validation_error</code>, <code>unsupported_measurement_format</code></td><td>Correct the request; do not retry unchanged.</td></tr>
-                  <tr><td>401</td><td><code>missing_api_key</code>, <code>invalid_api_key</code></td><td>Provide a valid Bearer key.</td></tr>
+                  <tr><td>401</td><td><code>missing_api_key</code>, <code>invalid_api_key</code></td><td>Provide a valid Bearer key. For <code>missing_api_key</code>, <code>details.reason</code> says what was wrong: <code>no_api_key</code>, <code>empty_api_key</code>, <code>key_in_url</code>, <code>key_prefix_only</code>, <code>unsupported_scheme</code>, <code>not_an_api_key</code> or <code>malformed_api_key</code>.</td></tr>
                   <tr><td>403</td><td><code>billing_required</code>, <code>insufficient_credits</code>, <code>feature_not_enabled</code></td><td>Organization billing, scope, or feature configuration must change.</td></tr>
                   <tr><td>404</td><td>not found</td><td>The report/file does not exist or is not visible to this key.</td></tr>
                   <tr><td>500</td><td><code>internal_error</code></td><td>Retry safely with the same idempotency key and exponential backoff.</td></tr>
