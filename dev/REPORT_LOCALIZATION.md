@@ -33,6 +33,7 @@ For organization orders, the server resolves flags and branch defaults; hiding t
 - US formatting branches return the original text and layout. Report-owned British English strings use the locale catalog; customer names, addresses, and notes are not rewritten.
 - PDF sync snapshots freeze preferences. Browser previews, isolated browser rendering, and the server renderer load the same units module. XML geometry/export formats retain their existing contracts.
 - Adding another language requires a catalog in `public/libraries/report-units.js`, a supported value in the server schemas, and a Company selector option, with rendering tests for that locale/font.
+- Report PDFs embed Montserrat, and jsPDF prints nothing for a letter the embedded font lacks. Montserrat has Latin and Cyrillic but no Greek, so `pdfReportFontFiles` (pdf.js) sets Greek reports, and reports with a Greek address, in Noto Sans (`public/fonts/NotoSans-*.ttf`, served by the PDF runtime as `/v1/firstmeasure/pdf-runtime/fonts/NotoSans-*.ttf`; FM-632). `public/v1/tests/report-pdf-fonts.test.ts` checks every report catalog's words against the font its PDF embeds; Japanese has no embedded font yet.
 
 ## Local checks
 
