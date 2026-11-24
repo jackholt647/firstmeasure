@@ -15,7 +15,7 @@ export const AREAS = [
   [["tools/dev-push/host/"], ["root:tests/dev-push-fm-release.test.mjs"]],
   [[`${V1}src/runtime_health.ts`], ["v1:tests/runtime-health.test.ts"]],
   [[`${V1}forms/`, `${LIB}forms-api/`, `${LIB}forms-embed/`, `${LIB}forms-staff/`, `${LIB}apps/settings/forms.js`], ["v1:tests/forms-api.test.ts"]],
-  [[`${V1}documents/inputs.ts`, `${V1}documents/render.ts`, `${LIB}doc-sent-editor/`], ["v1:tests/document-as-sent-editing.test.ts"]],
+  [[`${V1}documents/inputs.ts`, `${V1}documents/render.ts`], ["v1:tests/document-as-sent-editing.test.ts"]],
   [[`${V1}platform/app-experience/`, `${LIB}apps/firstmate-apps-manifest.js`], ["v1:tests/app-experience.test.ts", "v1:tests/app-experience-registry.test.ts", "v1:tests/access-gates.test.ts"]],
   [[`${V1}payments/`, `${V1}payment-browser/`, `${LIB}payments-api/`, `${LIB}payments-setup/`, `${LIB}payment-intake/`], ["v1:npm:test:payments"]],
   [[`${V1}contacts/`, `${V1}leads/`, `${V1}projects/`, `${V1}lead-intake/`], ["v1:tests/contacts-store.test.ts", "v1:tests/contact-merge.test.ts", "v1:tests/lead-receive.test.ts", "v1:tests/new-leads.test.ts", "v1:tests/project-entry.test.ts"]],

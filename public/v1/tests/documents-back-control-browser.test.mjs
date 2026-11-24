@@ -31,8 +31,9 @@ function harness({backCode,modalCode}){
   const workflow={id:'wf',name:'Proposal',steps:['One','Two','Three'].map((title,i)=>({id:'s'+i,title,items:[]}))};
   const run=new Function('esc','isPhone','workflow',`
     ${modalCode}
-    const state={destroyed:false,view:'list',docView:'editor',docWorkflow:null,workflowHandle:null,previewCleanup:null,sentEditor:null,doc:null};
+    const state={destroyed:false,view:'list',docView:'editor',docWorkflow:null,workflowHandle:null,previewCleanup:null,doc:null};
     const isReadOnlyStatus=status=>status==='signed';
+    const embedded=false,embed={};
     ${backCode}
     function setDocView(view){state.docView=view;window.log.push('view:'+view);syncBack();}
     function closeDocScreen(){state.workflowHandle?.destroy();state.workflowHandle=null;state.view='list';state.doc=null;state.docWorkflow=null;window.log.push('closed');syncBack();}
@@ -147,13 +148,14 @@ test('from "Edit manually" back returns to the steps, and a locked document has 
 });
 
 test('every surface the back control counts says when it opens and closes',()=>{
-  const preview=between('    async function openPreview(','    async function openAsSentEditor(');
+  const preview=between('    async function openPreview(','    async function openFullEditor(');
   assert.equal((preview.match(/syncBack\(\)/g)||[]).length,2,'Preview: open and close');
-  const asSent=between('    async function openAsSentEditor(','    // ================================================================= pdf');
-  assert.match(asSent,/state\.sentEditor = editor[^;]*;\s*syncBack\(\);/);
-  assert.match(asSent,/if \(state\.sentEditor === editor\) state\.sentEditor = null;\s*syncBack\(\);/);
+  // "Edit manually" is the full editor (GP-169), counted by docBackDepth.
+  assert.match(between('    async function openFullEditor(','\n    }'),/setDocView\('editor'\)/);
+  assert.match(source,/id: 'edit_manually'[^\n]*run: \(\) => openFullEditor\(\)/);
+  assert.doesNotMatch(source,/FMDocSentEditor|sentEditor/,'the separate as-sent editor is retired');
   assert.match(between('    function updateModeToggle(){','    }'),/syncBack\(\)/,'view and workflow changes');
-  assert.match(source,/onStepState: \(stepState\) => \{[^\n]*syncBack\(\); \}/,'step changes');
+  assert.match(source,/onStepState: \(stepState\) => \{[^\n]*syncBack\(\);/,'step changes');
   assert.match(between('    function closeDocScreen(){','\n    }'),/syncBack\(\)/);
   assert.match(source,/modalWatchers\.delete\(syncBack\);\s*backHistory\?\.release\(\);/,'destroy takes the entries off');
 });
