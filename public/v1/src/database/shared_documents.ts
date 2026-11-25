@@ -74,6 +74,43 @@ export async function listSharedDocuments<T>(input: Omit<SharedDocumentKey, "id"
   return result.rows.map((row) => row.document as T);
 }
 
+/** A top-level document field that must equal `equals`; a missing field compares as `missingAs` when given. */
+export type SharedDocumentFieldMatch = { field: string; equals: string; missingAs?: string };
+
+/**
+ * Lists one collection's documents whose top-level fields match, filtered in the
+ * query so the limit applies to matching documents only (FM-640: a newest-N
+ * window filtered afterwards silently drops older matches). Ordered by
+ * `orderByField` (text, descending) when given, else by last update.
+ */
+export async function listSharedDocumentsMatching<T>(input: Omit<SharedDocumentKey, "id"> & {
+  match: SharedDocumentFieldMatch[];
+  orderByField?: string;
+  limit?: number;
+}): Promise<T[]> {
+  await ensureSharedDocumentsReady();
+  const limit = Math.max(1, Math.min(500_000, Math.floor(input.limit ?? 10_000)));
+  const params: unknown[] = [input.namespace, input.collection, input.scope ?? ""];
+  const param = (value: unknown) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+  const conditions = input.match.map((match) => match.missingAs === undefined
+    ? `document->>${param(match.field)} = ${param(match.equals)}`
+    : `COALESCE(document->>${param(match.field)}, ${param(match.missingAs)}) = ${param(match.equals)}`);
+  const order = input.orderByField
+    ? `(document->>${param(input.orderByField)}) COLLATE "C" DESC NULLS LAST, updated_at DESC, id`
+    : "updated_at DESC, id";
+  const result = await queryPostgres<DocumentRow>(`
+    SELECT document FROM app_shared_documents
+    WHERE namespace=$1 AND collection=$2 AND scope=$3
+    ${conditions.map((condition) => `AND ${condition}`).join("\n    ")}
+    ORDER BY ${order}
+    LIMIT ${param(limit)}
+  `, params);
+  return result.rows.map((row) => row.document as T);
+}
+
 export async function replaceSharedDocument<T>(key: SharedDocumentKey, document: T): Promise<T> {
   await ensureSharedDocumentsReady();
   await queryPostgres(`

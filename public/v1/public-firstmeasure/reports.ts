@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
-import { listSharedDocuments, mutateSharedDocument, readSharedDocument, replaceSharedDocument } from "../src/database/shared_documents.js";
+import { listSharedDocumentsMatching, mutateSharedDocument, readSharedDocument, replaceSharedDocument, type SharedDocumentFieldMatch } from "../src/database/shared_documents.js";
 import { notFound } from "../platform/errors.js";
 import { asObject, cleanText, normalizeId } from "./util.js";
 
@@ -124,20 +124,27 @@ export async function listPublicFirstMeasureReports(input: {
   orgId: string;
   mode?: "test" | "live";
   externalId?: string | null;
+  idempotencyKeyHash?: string | null;
+  projectId?: string | null;
   limit?: number;
 }) {
+  const requested = Math.floor(Number(input.limit ?? 100));
+  const limit = Math.max(1, Math.min(500, Number.isFinite(requested) ? requested : 100));
   if (isFirstMeasurePostgresEnabled()) {
-    const records = await listSharedDocuments<PublicFirstMeasureReportRecord>({
+    // Filter in the query: a newest-N window across every organization,
+    // filtered afterwards, loses older reports (FM-640).
+    const match: SharedDocumentFieldMatch[] = [{ field: "org_id", equals: input.orgId }];
+    if (input.mode) match.push({ field: "mode", equals: input.mode, missingAs: "live" });
+    if (input.externalId) match.push({ field: "external_id", equals: input.externalId });
+    if (input.idempotencyKeyHash) match.push({ field: "idempotency_key_hash", equals: input.idempotencyKeyHash });
+    if (input.projectId) match.push({ field: "firstmeasure_project_id", equals: input.projectId });
+    return await listSharedDocumentsMatching<PublicFirstMeasureReportRecord>({
       namespace: "public_firstmeasure",
       collection: "reports",
-      limit: Math.max(500, Math.floor(input.limit ?? 100))
+      match,
+      orderByField: "created_at",
+      limit
     });
-    return records
-      .filter((record) => record.org_id === input.orgId)
-      .filter((record) => !input.mode || (record.mode ?? "live") === input.mode)
-      .filter((record) => !input.externalId || record.external_id === input.externalId)
-      .sort((a, b) => b.created_at.localeCompare(a.created_at))
-      .slice(0, Math.max(1, Math.min(500, Math.floor(input.limit ?? 100))));
   }
   await mkdir(publicFirstMeasureReportRoot(), { recursive: true });
   const entries = await readdir(publicFirstMeasureReportRoot(), { withFileTypes: true });
@@ -149,6 +156,8 @@ export async function listPublicFirstMeasureReports(input: {
       if (record.org_id !== input.orgId) continue;
       if (input.mode && (record.mode ?? "live") !== input.mode) continue;
       if (input.externalId && record.external_id !== input.externalId) continue;
+      if (input.idempotencyKeyHash && record.idempotency_key_hash !== input.idempotencyKeyHash) continue;
+      if (input.projectId && record.firstmeasure_project_id !== input.projectId) continue;
       records.push(record);
     } catch {
       // Ignore damaged report mappings.
@@ -156,18 +165,18 @@ export async function listPublicFirstMeasureReports(input: {
   }
   return records
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, Math.max(1, Math.min(500, Math.floor(input.limit ?? 100))));
+    .slice(0, limit);
 }
 
 export async function findPublicFirstMeasureReportByIdempotency(orgId: string, idempotencyHash: string | null, mode?: "test" | "live") {
   if (!idempotencyHash) return null;
-  const records = await listPublicFirstMeasureReports({ orgId, mode, limit: 500 });
-  return records.find((record) => record.idempotency_key_hash === idempotencyHash) ?? null;
+  const records = await listPublicFirstMeasureReports({ orgId, mode, idempotencyKeyHash: idempotencyHash, limit: 1 });
+  return records[0] ?? null;
 }
 
 export async function findPublicFirstMeasureReportByProjectId(orgId: string, projectId: string) {
-  const records = await listPublicFirstMeasureReports({ orgId, limit: 500 });
-  return records.find((record) => record.firstmeasure_project_id === projectId) ?? null;
+  const records = await listPublicFirstMeasureReports({ orgId, projectId, limit: 1 });
+  return records[0] ?? null;
 }
 
 export function publicReportSummary(record: PublicFirstMeasureReportRecord, project: unknown = null) {

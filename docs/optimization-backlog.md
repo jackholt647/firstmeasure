@@ -694,3 +694,15 @@ invalidate on writes to users, groups, departments, branches and connections.
 
 **Why it can wait.** With the projected read the cost is a few milliseconds even for the staff organization; the
 largest customer organizations are smaller.
+
+## Public API report lookups filter JSON without an index
+
+**Today.** `listPublicFirstMeasureReports` in `public-firstmeasure/reports.ts` (FM-640: `GET /reports?external_id=`,
+idempotent order replays, the report for a project) filters `app_shared_documents` by `document->>'org_id'` and the
+asked-for field in the query. No index covers those fields, so Postgres reads every public API report row (about 1,200
+on production in November 2026) for each lookup.
+
+**Where the change goes.** An expression index on `(document->>'org_id', document->>'created_at')` for
+`namespace='public_firstmeasure' AND collection='reports'`, or a small table of those reports with real columns.
+
+**Why it can wait.** A few thousand rows scan in milliseconds; it matters at tens of thousands.
