@@ -11,10 +11,11 @@ import vm from 'node:vm';
 const viewer = await readFile(new URL('../../portal/scripts/project_viewer.js', import.meta.url), 'utf8');
 const core = await readFile(new URL('../../portal/scripts/core.js', import.meta.url), 'utf8');
 
-function portalStore({ expanded }) {
+function portalStore({ expanded, fmJson }) {
   const local = new Map();
   const writes = [];
   const toasts = [];
+  const orderWrites = [];
   const refused = (method) => async (...args) => {
     writes.push([method, ...args]);
     const error = new Error('This session does not have permission to perform this action.');
@@ -33,7 +34,8 @@ function portalStore({ expanded }) {
     window: {
       Portal: {
         platformExpandedAccess: () => expanded,
-        ui: { showToast: (title, body) => toasts.push([title, body]) }
+        ui: { showToast: (title, body) => toasts.push([title, body]) },
+        util: { fmJson: async (path, options) => { orderWrites.push([path, options.method, JSON.parse(JSON.stringify(options.body))]); return fmJson ? fmJson(path, options) : { ok: true }; } }
       },
       __APP: { userOrgId: 'org-customer', userId: 'user-manager' },
       addEventListener() {}, dispatchEvent() {},
@@ -45,7 +47,7 @@ function portalStore({ expanded }) {
   };
   vm.createContext(context);
   vm.runInContext(viewer, context);
-  return { store: context.window.Portal.ProjectStore, writes, toasts };
+  return { store: context.window.Portal.ProjectStore, writes, toasts, orderWrites };
 }
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 20));
@@ -162,4 +164,47 @@ test('1M8-231: the list page and an order make no platform project write without
   assert.deepEqual(writes, [], 'no PUT, PATCH or DELETE to the platform projects API');
   assert.deepEqual(toasts, []);
   assert.ok(listed.projects.includes('m-oct22'), 'orders since the release are listed');
+});
+
+// FM-638: without expanded access the project is only this browser's copy, so a contact edit on an ordered project
+// is saved to the order's resident (the customer-scoped FirstMeasure PATCH), which the board and every device read.
+test('FM-638: a contact edit on an ordered project is saved to the order, once, and nothing else is', async () => {
+  const { store, writes, toasts, orderWrites } = portalStore({ expanded: false });
+  const ordered = store.fromQueue(...queuedOrder());
+  await settle();
+  assert.deepEqual(orderWrites, [], 'placing the order sends no contact write');
+  const contact = { id: 'c1', name: 'Pat Customer', email: 'pat@example.test', phone: '555-0100', primary: true };
+  store.save({ ...ordered, contacts: [contact] });
+  await settle();
+  assert.deepEqual(orderWrites, [['projects/measurement-231', 'PATCH', { resident: { name: 'Pat Customer', email: 'pat@example.test', phone: '555-0100' } }]]);
+  store.save({ ...ordered, contacts: [contact] });
+  store.save({ ...ordered, contacts: [], customer_name: '' });
+  await settle();
+  assert.equal(orderWrites.length, 1, 'an unchanged contact, or a record saved without contacts, writes nothing');
+  store.save({ ...ordered, contacts: [{ ...contact, name: 'Pat Renamed', phone: '' }] });
+  await settle();
+  assert.deepEqual(orderWrites[1], ['projects/measurement-231', 'PATCH', { resident: { name: 'Pat Renamed', email: 'pat@example.test', phone: null } }]);
+  store.save({ id: 'project_draft2', address: '9 Draft Way', workflow_state: 'draft', contacts: [contact] });
+  store.save({ id: 'project_draft2', address: '9 Draft Way', workflow_state: 'draft', contacts: [{ ...contact, name: 'Other' }] });
+  await settle();
+  assert.equal(orderWrites.length, 2, 'a project with no order writes nothing');
+  assert.deepEqual(writes, [], 'still no platform projects API call');
+  assert.deepEqual(toasts, []);
+});
+
+test('FM-638: a window opened by the order id saves to that order, and a refused write is said', async () => {
+  const refuse = { status: 403 };
+  const { store, toasts, orderWrites } = portalStore({ expanded: false, fmJson: async () => { if (refuse.status) throw Object.assign(new Error('This account cannot use this report.'), { status: refuse.status }); return { ok: true }; } });
+  // As the window saves it on dev: the record's own id is the order's, its measurement carries no id.
+  const order = { id: 'fm638order', address: '1 Order Way', workflow_state: 'measurement_ordered', status: 'completed', measurement_project: { status: 'completed' }, contacts: [{ name: 'Original', email: 'o@example.test' }] };
+  store.cache(order);
+  store.save({ ...order, contacts: [{ name: 'Edited', email: 'o@example.test' }] });
+  await settle();
+  assert.equal(orderWrites[0]?.[0], 'projects/fm638order');
+  assert.equal(toasts.length, 1, 'a refused contact write is not silent');
+  refuse.status = 404;
+  store.save({ ...order, contacts: [{ name: 'Edited again', email: 'o@example.test' }] });
+  await settle();
+  assert.equal(orderWrites.length, 2);
+  assert.equal(toasts.length, 1, 'no order on the server (a sample): nothing to save to, nothing said');
 });

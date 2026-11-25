@@ -185,6 +185,29 @@ test("a customer's project changes are limited to the customer info fields", asy
   assert.notEqual(manifest.issuer?.email, "attacker@example.test");
 });
 
+test("a customer can change their order's contact, and only its name, email and phone (FM-638)", async () => {
+  const a = await customer("hotel");
+  const id = await project(a.orgId, "8 Hotel Hill, Mobile, AL");
+  const { readManifest, patchManifest } = await import("../firstmeasure/storage.js");
+  await patchManifest(id, { resident: { name: "Original Customer", email: "original@example.test", phone: "555-0100" } });
+  const patched = await inject("PATCH", `/v1/firstmeasure/projects/${id}`, { cookie: a.cookie }, {
+    resident: { name: "  Edited Name  ", email: "edited@example.test", phone: null, notes: "x".repeat(10_000), nested: { a: 1 } }
+  });
+  assert.equal(patched.statusCode, 200, patched.body);
+  const manifest: any = await readManifest(id);
+  assert.deepEqual({ name: manifest.resident?.name, email: manifest.resident?.email, phone: manifest.resident?.phone }, { name: "Edited Name", email: "edited@example.test", phone: null });
+  assert.equal(manifest.resident?.notes, undefined);
+  assert.equal(manifest.resident?.nested, undefined);
+  // The board lists the order with its new contact.
+  const listed = await inject("POST", "/v1/firstmeasure/projects/list", { cookie: a.cookie }, { filter: "org", page: 1, limit: 100, include_all: true });
+  const row = (JSON.parse(listed.body).projects || []).find((entry: any) => entry.id === id);
+  assert.equal(row?.resident_name ?? row?.resident?.name, "Edited Name");
+  for (const resident of ["Jane", { name: 7 }, { email: "e".repeat(400) }]) {
+    assert.equal((await inject("PATCH", `/v1/firstmeasure/projects/${id}`, { cookie: a.cookie }, { resident })).statusCode, 400, JSON.stringify(resident));
+  }
+  assert.equal(((await readManifest(id)) as any).resident?.name, "Edited Name");
+});
+
 test("staff are recognised by staff organization membership and their level", async () => {
   const technician = await staffMember("tech", "technician");
   const admin = await staffMember("boss", "admin");

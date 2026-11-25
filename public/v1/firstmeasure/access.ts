@@ -84,6 +84,25 @@ function plainObject(value: unknown): value is Json {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value) && !Buffer.isBuffer(value);
 }
 
+const CUSTOMER_RESIDENT_FIELDS = ["name", "email", "phone"] as const;
+
+/**
+ * The order's contact as a customer may write it: its name, email and phone, each text or null (cleared). It is
+ * what the board, report emails and every device show for the order (FM-638), so nothing else is stored.
+ */
+function customerResident(value: unknown) {
+  if (!plainObject(value)) throw new FirstMeasureError("invalid_resident", 400, "The contact must be an object with name, email and phone.");
+  const resident: Json = {};
+  for (const key of CUSTOMER_RESIDENT_FIELDS) {
+    if (!(key in value)) continue;
+    const field = value[key];
+    if (field === null || field === undefined) { resident[key] = null; continue; }
+    if (typeof field !== "string" || field.length > 320) throw new FirstMeasureError("invalid_resident", 400, `The contact's ${key} must be text of at most 320 characters.`);
+    resident[key] = field.trim() || null;
+  }
+  return resident;
+}
+
 function bindActor(request: FastifyRequest, principal: Principal) {
   const actor = principalActor(principal);
   // The system principal is our own service code; it names the actor it works for.
@@ -115,7 +134,9 @@ function scopeCustomerRequest(request: FastifyRequest, orgId: string) {
   }
   if (request.method === "PATCH" && route === "/v1/firstmeasure/projects/:id") {
     const input = plainObject(request.body) ? request.body : {};
-    request.body = Object.fromEntries(Object.entries(input).filter(([key]) => (CUSTOMER_PROJECT_PATCH_FIELDS as readonly string[]).includes(key) || key === "actor"));
+    const allowed: Json = Object.fromEntries(Object.entries(input).filter(([key]) => (CUSTOMER_PROJECT_PATCH_FIELDS as readonly string[]).includes(key) || key === "actor"));
+    if ("resident" in allowed) allowed.resident = customerResident(allowed.resident);
+    request.body = allowed;
   }
 }
 

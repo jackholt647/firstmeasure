@@ -919,6 +919,60 @@
     pumpProjectSaves(id, state);
   });
 
+  // FM-638: without expanded access a project is only this browser's copy, but its FirstMeasure order is stored on
+  // the server, and the order's contact (its resident) is what the board, report emails and every device show; the
+  // window reopens with it. So a contact edit on an ordered project is saved to the order, as its customer may.
+  const orderContactSaved = new Map();
+  // The project's primary contact as the window edits it (its contact list; the customer_* aliases can be stale).
+  const orderContact = (project = {}) => {
+    const contacts = dedupeProjectContacts(project.contacts);
+    const contact = contacts.find((entry) => entry?.primary && firstText(entry?.name, entry?.email, entry?.phone))
+      || contacts.find((entry) => firstText(entry?.name, entry?.email, entry?.phone)) || {};
+    return { name: firstText(contact.name) || null, email: firstText(contact.email) || null, phone: firstText(contact.phone) || null };
+  };
+  const orderContactKey = (contact) => JSON.stringify([contact.name, contact.email, contact.phone]);
+  // One write per order at a time; edits made while one is in flight (typing) collapse into the latest.
+  const orderContactQueues = new Map();
+  const pumpOrderContact = (orderId, state) => {
+    if (state.running || !state.pending) return;
+    const job = state.pending;
+    state.pending = null;
+    state.running = Promise.resolve(window.Portal.util.fmJson(`projects/${encodeURIComponent(orderId)}`, { method: 'PATCH', body: { resident: job.contact } }))
+      .then((result) => { orderContactSaved.set(orderId, job.key); job.waiters.forEach((waiter) => waiter.resolve(result)); },
+        (error) => job.waiters.forEach((waiter) => waiter.reject(error)))
+      .finally(() => {
+        state.running = null;
+        if (state.pending) pumpOrderContact(orderId, state);
+        else orderContactQueues.delete(orderId);
+      });
+  };
+  // The order a project window shows: its measurement's id, or (a window opened by the order's own id) the record's.
+  const orderIdForProject = (project = {}) => {
+    const measured = measurementKeys(project.measurement_project || project.measurement || {})[0];
+    if (measured) return measured;
+    if (!/^measurement_(ordered|cancelled)$/.test(firstText(project.workflow_state))) return '';
+    return [project.measurement_project_id, project.project_id, project.folder, project.id]
+      .map((value) => firstText(value)).find((value) => value && !isPlatformProjectId(value)) || '';
+  };
+  const saveOrderContact = (project, previous, contacts) => new Promise((resolve, reject) => {
+    const orderId = orderIdForProject(project);
+    if (!orderId || typeof window.Portal?.util?.fmJson !== 'function') return resolve(null);
+    const contact = orderContact({ contacts });
+    // A record saved without its contacts never clears the order's.
+    if (!firstText(contact.name, contact.email, contact.phone)) return resolve(null);
+    const key = orderContactKey(contact);
+    const state = orderContactQueues.get(orderId) || { running: null, pending: null, last: '' };
+    const baseline = state.pending?.key || state.last
+      || (orderContactSaved.has(orderId) ? orderContactSaved.get(orderId) : (previous ? orderContactKey(orderContact(previous)) : key));
+    if (key === baseline) return resolve(null);
+    state.last = key;
+    orderContactQueues.set(orderId, state);
+    const waiters = state.pending ? state.pending.waiters : [];
+    waiters.push({ resolve, reject });
+    state.pending = { contact, key, waiters };
+    pumpOrderContact(orderId, state);
+  });
+
   window.Portal.ProjectStore = {
     cache(project){
       if (!isProjectLike(project)) return project || null;
@@ -926,8 +980,9 @@
     },
     save(project){
       if (!isProjectLike(project)) return project || null;
+      const previous = readStore().projects?.[canonicalProjectId(project)] || null;
       const next = cacheProject(project);
-      void this.saveRemote(next).catch((error) => {
+      void this.saveRemote(next, { previous, contacts: project.contacts }).catch((error) => {
         console.warn('Platform project save failed', error);
         notifyProjectSaveFailed(error);
       });
@@ -939,9 +994,20 @@
       const id = typeof projectOrId === 'string' ? projectOrId : canonicalProjectId(projectOrId || {});
       return !!id && projectSaveQueues.has(id);
     },
-    async saveRemote(project){
+    async saveRemote(project, options = {}){
       if (!isProjectLike(project)) return null;
-      if (!platformProjectsWritable()) return cacheProject(project);
+      if (!platformProjectsWritable()) {
+        const previous = options.previous !== undefined ? options.previous : (readStore().projects?.[canonicalProjectId(project)] || null);
+        const cached = cacheProject(project);
+        // The project itself is saved (in this browser) either way; a refused contact write is said, not thrown.
+        // The contacts as the caller saved them: caching fills a missing list in from the customer_* aliases.
+        await saveOrderContact(cached, previous, options.contacts !== undefined ? options.contacts : project.contacts).catch((error) => {
+          console.warn('FirstMeasure order contact save failed', error);
+          // No such order (a sample): there is nothing on the server to save to.
+          if (Number(error?.status || 0) !== 404) notifyProjectSaveFailed(error);
+        });
+        return cached;
+      }
       const orgId = await ensureRemoteOrganization();
       const measurementProject = project?.measurement_project || project?.measurement || {};
       const nextId = canonicalProjectId(project);
