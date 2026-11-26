@@ -53,7 +53,7 @@ placeholders, base = 2e70839f, previous channel archive = FM-638's; rollback set
   Anonymous `GET /v1/public/firstmeasure/reports?external_id=probe`: 401 (3/3).
 - Web 5xx 23:00-23:11 vs the 30 min before: 0.01-0.04 % vs 0.01-0.03 % per node; every 5xx is the long-standing
   `top_view_reroll_proxy.php`. Web nginx `/v1/public/firstmeasure/reports*` from 22:46:50 to 03:52: 8 x 200 and 6 x 404 by id
-  (that path is unchanged) and the three 401 probes; the 24 h before had 29 customer calls, no 5xx either side.
+  (that path is unchanged) and the three 401 probes; the 24 h before had 33 (31 authenticated), no 5xx either side.
 - Compatibility 03:38-03:52: 0 watchdog kills (0 in the 24 h before), 0 OOM, 0 Node 500s, 0 pool timeouts, 0
   restarts, MainPID 3681809 throughout; 5xx 0.22 % vs 0.27 % in the 30 min before, all `top_view_reroll_proxy.php`.
   Web 5xx 03:39-03:52: 0.00-0.03 % vs 0.01-0.02 %.
